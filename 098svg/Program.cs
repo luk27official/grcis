@@ -110,7 +110,7 @@ namespace _098svg
       }
     }
 
-    public int? FindShortestPath(int x, int y) { //find the nearest path from the given point to [0,0]
+    public int? FindShortestPath(int x, int y, int x2, int y2) { //find the nearest path from the given point to [0,0]
       ResetVisited();
       Queue<Cell> queue = new Queue<Cell>();
       queue.Enqueue(cells[x, y]);
@@ -122,7 +122,7 @@ namespace _098svg
         int queue_size = queue.Count;
         while(queue_size-- != 0) {
           Cell cell = queue.Dequeue();
-          if (cell.X == 0 && cell.Y == 0)
+          if (cell.X == x2 && cell.Y == y2)
             {
               Console.WriteLine("Depth: {0}, count: {1}", depth, count);
               return depth;
@@ -290,6 +290,9 @@ namespace _098svg
 
     //--- project-specific options ---
 
+    /// <summary>
+    /// Specifies SVG pen size.
+    /// </summary>
     public int penSize = 20;
 
     /// <summary>
@@ -306,6 +309,12 @@ namespace _098svg
     /// Number of maze rows (vertical size in cells).
     /// </summary>
     public int rows = 8;
+
+    public int endX = 11;
+    public int endY = 7;
+
+    public int startX = 0;
+    public int startY = 0;
 
     /// <summary>
     /// Difficulty coefficient (optional).
@@ -397,6 +406,45 @@ namespace _098svg
           if (long.TryParse(value, out newLong) &&
               newLong >= 0L)
             seed = newLong;
+          break;
+        
+        case "start":
+          //parse start position in format [x,y]
+          //remove specific characters from string
+          value = value.Replace("[", "");
+          value = value.Replace("]", "");
+          value = value.Replace(" ", "");
+
+          string[] start = value.Split(',');
+          
+          if (start.Length == 2)
+          {
+            if (int.TryParse(start[0], out newInt) &&
+                newInt >= 0 && newInt < columns)
+              startX = newInt;
+            if (int.TryParse(start[1], out newInt) &&
+                newInt >= 0 && newInt < rows)
+              startY = newInt;
+          }
+          break;
+        
+        case "end":
+          //parse end position in format [x,y]
+          //remove specific characters from string
+          value = value.Replace("[", "");
+          value = value.Replace("]", "");
+          value = value.Replace(" ", "");
+
+          string[] end = value.Split(',');
+          if (end.Length == 2)
+          {
+            if (int.TryParse(end[0], out newInt) &&
+                newInt >= 0 && newInt < columns)
+              endX = newInt;
+            if (int.TryParse(end[1], out newInt) &&
+                newInt >= 0 && newInt < rows)
+              endY = newInt;
+          }
           break;
 
         case "html":
@@ -499,6 +547,11 @@ namespace _098svg
                     color);
     }
 
+    static void drawRectangle(StreamWriter wri, double x, double y, double size, string color="#000") {
+      wri.WriteLine("<rect x=\"{0:f2}\" y=\"{1:f2}\" width=\"{2:f2}\" height=\"{2:f2}\" stroke=\"none\" fill=\"{3}\"/>",
+                    x, y, size, color);
+    }
+
     static public void DrawLine(StreamWriter wri, int originX, int originY, float size, DrawWall dir, int R = 0, int G = 0, int B = 0)
     {
       List<Vector2> workList = new List<Vector2>();
@@ -566,7 +619,7 @@ namespace _098svg
         for(int i = 0; i < 50; i++) {
           Maze maze = new Maze(mazeHeight, mazeWidth, rnd);
           maze.Generate();
-          int? depth = maze.FindShortestPath(mazeWidth - 1, mazeHeight - 1);
+          int? depth = maze.FindShortestPath(CmdOptions.options.endY, CmdOptions.options.endX, CmdOptions.options.startX, CmdOptions.options.startY);
           if(depth != null) {
             if(depth < minDepth) {
               minDepth = (int)depth;
@@ -584,7 +637,7 @@ namespace _098svg
         do {
           Maze maze = new Maze(mazeHeight, mazeWidth, rnd);
           maze.Generate();
-          int? depth = maze.FindShortestPath(mazeWidth - 1, mazeHeight - 1);
+          int? depth = maze.FindShortestPath(CmdOptions.options.endY, CmdOptions.options.endX, CmdOptions.options.startX, CmdOptions.options.startY);
           if(depth != null) {
             if(Math.Abs(normalizedDifficulty - (int)depth) < 3)
             {
@@ -596,8 +649,14 @@ namespace _098svg
 
         //and then color the starting and ending points
         int penSize = CmdOptions.options.penSize;
-        DrawLine(wri, 0, 0, penSize, DrawWall.TOP, 255, 255, 255);
-        DrawLine(wri, (mazeWidth-1)*-penSize, (mazeHeight-1)*-penSize, penSize, DrawWall.BOTTOM, 255, 255, 255);
+        //DrawLine(wri, 0, 0, penSize, DrawWall.TOP, 255, 255, 255);
+        //DrawLine(wri, (mazeWidth-1)*-penSize, (mazeHeight-1)*-penSize, penSize, DrawWall.BOTTOM, 255, 255, 255);
+
+        drawRectangle(wri, CmdOptions.options.endX*penSize + 1, CmdOptions.options.endY*penSize + 1, penSize - 2, "#ff0000");
+        System.Console.WriteLine("End: " + CmdOptions.options.endX + ", " + CmdOptions.options.endY);
+        drawRectangle(wri, CmdOptions.options.startX*penSize + 1, CmdOptions.options.startY*penSize + 1, penSize - 2, "#00ff00");
+        System.Console.WriteLine("Start: " + CmdOptions.options.startX + ", " + CmdOptions.options.startY);
+        
 
         wri.WriteLine("</svg>");
       }
