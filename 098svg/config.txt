@@ -3,8 +3,15 @@
 # run 098svg.exe application with command-line:
 # 098svg -c config.txt
 
-html    = 1
-columns = 20
+html        = 1
+columns     = 35
+rows        = 25
+difficulty  = 0.7
+start       = [31,13]
+end         = [1,6]
+width		= 900
+height 		= 600
+tolerance 	= 0.05
 
 output = out.html
 generate
