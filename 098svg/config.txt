@@ -4,11 +4,14 @@
 # 098svg -c config.txt
 
 html        = 1
-columns     = 12
-rows        = 8
-difficulty  = 0
-start       = [1,2]
-end         = [0,0]
+columns     = 35
+rows        = 25
+difficulty  = 0.7
+start       = [31,13]
+end         = [1,6]
+width		= 900
+height 		= 600
+tolerance 	= 0.05
 
 output = out.html
 generate

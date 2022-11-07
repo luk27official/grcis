@@ -26,7 +26,7 @@ namespace _098svg
     public bool Visited {get; set;}
     public bool[] walls = new bool[4];
 
-    public Cell (int x, int y)
+    public Cell (int y, int x)
     {
       this.X = x;
       this.Y = y;
@@ -58,6 +58,10 @@ namespace _098svg
       this.rnd = rnd;
     }
 
+    /// <summary>
+    /// Writes the maze in a SVG format to the writer.
+    /// </summary>
+    /// <param name="writer">Provided writer.</param>
     public void WriteToSVG(StreamWriter writer)
     {
       IEnumerable<DrawWall> values = Enum.GetValues(typeof(DrawWall)).Cast<DrawWall>();
@@ -80,6 +84,10 @@ namespace _098svg
       }
     }
 
+    /// <summary>
+    /// A method returning information whether there exists an unvisited cell.
+    /// </summary>
+    /// <returns>True if there is at least one unvisited cell.</returns>
     private bool ExistsUnvisitedCell()
     {
       for (int i = 0; i < height; i++)
@@ -93,6 +101,12 @@ namespace _098svg
       return false;
     }
 
+    /// <summary>
+    /// Method checking an existence of an cell (due to boundaries).
+    /// </summary>
+    /// <param name="x">X coord</param>
+    /// <param name="y">Y coord</param>
+    /// <returns>True if the coordinates fit the boundaries.</returns>
     private bool Exists(int x, int y)
     {
       if (x < 0 || y < 0 || x > width - 1 || y > height - 1)
@@ -100,6 +114,9 @@ namespace _098svg
       return true;
     }
 
+    /// <summary>
+    /// Method resetting the visited value of every cell.
+    /// </summary>
     private void ResetVisited()
     {
       for (int i = 0; i < height; i++)
@@ -111,7 +128,15 @@ namespace _098svg
       }
     }
 
-    public int? FindShortestPath(int x, int y, int x2, int y2, StreamWriter wri) { //find the nearest path from the given point to [0,0]
+    /// <summary>
+    /// BFS for solving the maze.
+    /// </summary>
+    /// <param name="x">X coord of the first point</param>
+    /// <param name="y">Y coord of the first point</param>
+    /// <param name="x2">X coord of the second point</param>
+    /// <param name="y2">Y coord of the second point</param>
+    /// <returns>Depth of the maze (length of the shortest path).</returns>
+    public int? FindShortestPath(int x, int y, int x2, int y2) { 
       ResetVisited();
       Queue<Cell> queue = new Queue<Cell>();
       queue.Enqueue(cells[y, x]);
@@ -123,39 +148,45 @@ namespace _098svg
         int queue_size = queue.Count;
         while(queue_size-- != 0) {
           Cell cell = queue.Dequeue();
-          Program.drawRectangle(wri, cell.Y * 20 + 1, cell.X * 20 + 1, 20 - 6, "#" + (20*depth).ToString("X") + "0000");
-          if (cell.Y == x2 && cell.X == y2)
+          if (cell.X == x2 && cell.Y == y2)
             {
-              Console.WriteLine("Depth: {0}, count: {1}", depth, count);
+              //Console.WriteLine("Depth: {0}, count: {1}", depth, count);
               return depth;
             }
-          if (Exists(cell.Y, cell.X - 1) && !cells[cell.X - 1, cell.Y].Visited && !cells[cell.X, cell.Y].walls[(int)DrawWall.LEFT])
+
+          if (Exists(cell.X, cell.Y - 1) && !cells[cell.Y - 1, cell.X].Visited && !cells[cell.Y, cell.X].walls[(int)DrawWall.TOP])
           {
-            cells[cell.X - 1, cell.Y].Visited = true;
-            queue.Enqueue(cells[cell.X - 1, cell.Y]);
+            cells[cell.Y - 1, cell.X].Visited = true;
+            queue.Enqueue(cells[cell.Y - 1, cell.X]);
           }
-          if (Exists(cell.Y, cell.X + 1) && !cells[cell.X + 1, cell.Y].Visited && !cells[cell.X, cell.Y].walls[(int)DrawWall.RIGHT])
+
+          if (Exists(cell.X, cell.Y + 1) && !cells[cell.Y + 1, cell.X].Visited && !cells[cell.Y, cell.X].walls[(int)DrawWall.BOTTOM])
           {
-            cells[cell.X + 1, cell.Y].Visited = true;
-            queue.Enqueue(cells[cell.X + 1, cell.Y]);
+            cells[cell.Y + 1, cell.X].Visited = true;
+            queue.Enqueue(cells[cell.Y + 1, cell.X]);
           }
-          if (Exists(cell.Y - 1, cell.X) && !cells[cell.X, cell.Y - 1].Visited && !cells[cell.X, cell.Y].walls[(int)DrawWall.TOP])
+
+          if (Exists(cell.X - 1, cell.Y) && !cells[cell.Y, cell.X - 1].Visited && !cells[cell.Y, cell.X].walls[(int)DrawWall.LEFT])
           {
-            cells[cell.X, cell.Y - 1].Visited = true;
-            queue.Enqueue(cells[cell.X, cell.Y - 1]);
+            cells[cell.Y, cell.X - 1].Visited = true;
+            queue.Enqueue(cells[cell.Y, cell.X - 1]);
           }
-          if (Exists(cell.Y + 1, cell.X) && !cells[cell.X, cell.Y + 1].Visited && !cells[cell.X, cell.Y].walls[(int)DrawWall.BOTTOM])
+
+          if (Exists(cell.X + 1, cell.Y) && !cells[cell.Y, cell.X + 1].Visited && !cells[cell.Y, cell.X].walls[(int)DrawWall.RIGHT])
           {
-            cells[cell.X, cell.Y + 1].Visited = true;
-            queue.Enqueue(cells[cell.X, cell.Y + 1]);
+            cells[cell.Y, cell.X + 1].Visited = true;
+            queue.Enqueue(cells[cell.Y, cell.X + 1]);
           }
           count++;
         }
         depth++;
       }
-      return null; //path not found
+      return null; //path not found - should not happen
     }
 
+    /// <summary>
+    /// Method which generates the maze.
+    /// </summary>
     public void Generate()
     {
       //pick a random starting cell
@@ -303,6 +334,11 @@ namespace _098svg
     public string outDir = @"./";
 
     /// <summary>
+    /// Number which decides how tolerant should the generator be whilst generating the maze based on some difficulty.
+    /// </summary>
+    public double tolerance = 0.05;
+
+    /// <summary>
     /// Number of maze columns (horizontal size in cells).
     /// </summary>
     public int columns = 12;
@@ -404,6 +440,12 @@ namespace _098svg
           if (double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out newDouble) &&
               newDouble >= 0.0 && newDouble <= 1.0)
             difficulty = newDouble;
+          break;
+
+        case "tolerance":
+          if (double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out newDouble) &&
+              newDouble >= 0.0 && newDouble <= 1.0)
+            tolerance = newDouble;
           break;
 
         case "width":
@@ -555,17 +597,9 @@ namespace _098svg
       wri.WriteLine("<path d=\"{0}\" stroke=\"{1}\" fill=\"none\"/>", sb.ToString(), color);
     }
 
-    static void drawCross (StreamWriter wri, double x, double y, double size, string color = "#000")
-    {
-      wri.WriteLine("<path d=\"M{0:f2},{1:f2}L{2:f2},{3:f2}M{4:f2},{5:f2}L{6:f2},{7:f2}\" stroke=\"{8}\" fill=\"none\"/>",
-                    x - size, y - size, x + size, y + size,
-                    x - size, y + size, x + size, y - size,
-                    color);
-    }
-
     public static void drawRectangle(StreamWriter wri, double x, double y, double size, string color="#000") {
-      wri.WriteLine("<rect x=\"{0:f2}\" y=\"{1:f2}\" width=\"{2:f2}\" height=\"{2:f2}\" stroke=\"none\" fill=\"{3}\"/>",
-                    x, y, size, color);
+      wri.WriteLine(string.Format(CultureInfo.InvariantCulture, "<rect x=\"{0:f2}\" y=\"{1:f2}\" width=\"{2:f2}\" height=\"{2:f2}\" stroke=\"none\" fill=\"{3}\"/>",
+                    x, y, size, color));
     }
 
     static public void DrawLine(StreamWriter wri, int originX, int originY, float size, DrawWall dir, int R = 0, int G = 0, int B = 0)
@@ -629,16 +663,14 @@ namespace _098svg
         int mazeWidth = CmdOptions.options.columns;
         int mazeHeight = CmdOptions.options.rows;
 
-        System.Console.WriteLine("End: " + CmdOptions.options.endX + ", " + CmdOptions.options.endY);
-        System.Console.WriteLine("Start: " + CmdOptions.options.startX + ", " + CmdOptions.options.startY);
-
-        //at first, generate 50 mazes to get the minimum depth and the maximum depth
+        //at first, generate 50 mazes to get the minimum depth and the maximum depth needed to solve (for the difficulty option)
+        //the depth is calculated by BFS
         int minDepth = mazeHeight*mazeWidth;
         int maxDepth = -1;
         for(int i = 0; i < 50; i++) {
           Maze maze = new Maze(mazeHeight, mazeWidth, rnd);
           maze.Generate();
-          int? depth = maze.FindShortestPath(CmdOptions.options.endX, CmdOptions.options.endY, CmdOptions.options.startX, CmdOptions.options.startY, wri);
+          int? depth = maze.FindShortestPath(CmdOptions.options.endX, CmdOptions.options.endY, CmdOptions.options.startX, CmdOptions.options.startY);
           if(depth != null) {
             if(depth < minDepth) {
               minDepth = (int)depth;
@@ -649,17 +681,16 @@ namespace _098svg
           }
         }
 
-        Console.WriteLine(CmdOptions.options.difficulty);
         int normalizedDifficulty = (int)Math.Round(((maxDepth - minDepth) * CmdOptions.options.difficulty) + minDepth);
-        Console.WriteLine(normalizedDifficulty.ToString());
 
-        //then generate the maze with the normalized difficulty
+        //then generate the maze with the desired normalized difficulty
+        //if this while would run for too long, then the user should lower the tolerance
         do {
           Maze maze = new Maze(mazeHeight, mazeWidth, rnd);
           maze.Generate();
-          int? depth = maze.FindShortestPath(CmdOptions.options.endX, CmdOptions.options.endY, CmdOptions.options.startX, CmdOptions.options.startY, wri);
+          int? depth = maze.FindShortestPath(CmdOptions.options.endX, CmdOptions.options.endY, CmdOptions.options.startX, CmdOptions.options.startY);
           if(depth != null) {
-            if(Math.Abs(normalizedDifficulty - (int)depth) < 3)
+            if(Math.Abs(normalizedDifficulty - (int)depth) < normalizedDifficulty * 0.05) // with tolerance
             {
               maze.WriteToSVG(wri);
               break;
