@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Drawing;
 using System.Globalization;
 using System.IO;
 using System.Linq;
@@ -110,11 +111,11 @@ namespace _098svg
       }
     }
 
-    public int? FindShortestPath(int x, int y, int x2, int y2) { //find the nearest path from the given point to [0,0]
+    public int? FindShortestPath(int x, int y, int x2, int y2, StreamWriter wri) { //find the nearest path from the given point to [0,0]
       ResetVisited();
       Queue<Cell> queue = new Queue<Cell>();
-      queue.Enqueue(cells[x, y]);
-      cells[x, y].Visited = true;
+      queue.Enqueue(cells[y, x]);
+      cells[y, x].Visited = true;
       int count = 0;
       int depth = 0;
       while (queue.Count > 0)
@@ -122,30 +123,31 @@ namespace _098svg
         int queue_size = queue.Count;
         while(queue_size-- != 0) {
           Cell cell = queue.Dequeue();
-          if (cell.X == x2 && cell.Y == y2)
+          Program.drawRectangle(wri, cell.Y * 20 + 1, cell.X * 20 + 1, 20 - 6, "#" + (20*depth).ToString("X") + "0000");
+          if (cell.Y == x2 && cell.X == y2)
             {
               Console.WriteLine("Depth: {0}, count: {1}", depth, count);
               return depth;
             }
-          if (Exists(cell.X - 1, cell.Y) && !cells[cell.Y, cell.X - 1].Visited && !cells[cell.Y, cell.X].walls[(int)DrawWall.LEFT])
+          if (Exists(cell.Y, cell.X - 1) && !cells[cell.X - 1, cell.Y].Visited && !cells[cell.X, cell.Y].walls[(int)DrawWall.LEFT])
           {
-            cells[cell.Y, cell.X - 1].Visited = true;
-            queue.Enqueue(cells[cell.Y, cell.X - 1]);
+            cells[cell.X - 1, cell.Y].Visited = true;
+            queue.Enqueue(cells[cell.X - 1, cell.Y]);
           }
-          if (Exists(cell.X + 1, cell.Y) && !cells[cell.Y, cell.X + 1].Visited && !cells[cell.Y, cell.X].walls[(int)DrawWall.RIGHT])
+          if (Exists(cell.Y, cell.X + 1) && !cells[cell.X + 1, cell.Y].Visited && !cells[cell.X, cell.Y].walls[(int)DrawWall.RIGHT])
           {
-            cells[cell.Y, cell.X + 1].Visited = true;
-            queue.Enqueue(cells[cell.Y, cell.X + 1]);
+            cells[cell.X + 1, cell.Y].Visited = true;
+            queue.Enqueue(cells[cell.X + 1, cell.Y]);
           }
-          if (Exists(cell.X, cell.Y - 1) && !cells[cell.Y - 1, cell.X].Visited && !cells[cell.Y, cell.X].walls[(int)DrawWall.TOP])
+          if (Exists(cell.Y - 1, cell.X) && !cells[cell.X, cell.Y - 1].Visited && !cells[cell.X, cell.Y].walls[(int)DrawWall.TOP])
           {
-            cells[cell.Y - 1, cell.X].Visited = true;
-            queue.Enqueue(cells[cell.Y - 1, cell.X]);
+            cells[cell.X, cell.Y - 1].Visited = true;
+            queue.Enqueue(cells[cell.X, cell.Y - 1]);
           }
-          if (Exists(cell.X, cell.Y + 1) && !cells[cell.Y + 1, cell.X].Visited && !cells[cell.Y, cell.X].walls[(int)DrawWall.BOTTOM])
+          if (Exists(cell.Y + 1, cell.X) && !cells[cell.X, cell.Y + 1].Visited && !cells[cell.X, cell.Y].walls[(int)DrawWall.BOTTOM])
           {
-            cells[cell.Y + 1, cell.X].Visited = true;
-            queue.Enqueue(cells[cell.Y + 1, cell.X]);
+            cells[cell.X, cell.Y + 1].Visited = true;
+            queue.Enqueue(cells[cell.X, cell.Y + 1]);
           }
           count++;
         }
@@ -310,11 +312,25 @@ namespace _098svg
     /// </summary>
     public int rows = 8;
 
-    public int endX = 11;
-    public int endY = 7;
+    /// <summary>
+    /// End X coordinate of the maze.
+    /// </summary>
+    public int endX = 0;
 
-    public int startX = 0;
-    public int startY = 0;
+    /// <summary>
+    /// End Y coordinate of the maze.
+    /// </summary>
+    public int endY = 0;
+
+    /// <summary>
+    /// Start X coordinate of the maze.
+    /// </summary>
+    public int startX = 8;
+    
+    /// <summary>
+    /// Start Y coordinate of the maze.
+    /// </summary>
+    public int startY = 5;
 
     /// <summary>
     /// Difficulty coefficient (optional).
@@ -547,7 +563,7 @@ namespace _098svg
                     color);
     }
 
-    static void drawRectangle(StreamWriter wri, double x, double y, double size, string color="#000") {
+    public static void drawRectangle(StreamWriter wri, double x, double y, double size, string color="#000") {
       wri.WriteLine("<rect x=\"{0:f2}\" y=\"{1:f2}\" width=\"{2:f2}\" height=\"{2:f2}\" stroke=\"none\" fill=\"{3}\"/>",
                     x, y, size, color);
     }
@@ -613,13 +629,16 @@ namespace _098svg
         int mazeWidth = CmdOptions.options.columns;
         int mazeHeight = CmdOptions.options.rows;
 
+        System.Console.WriteLine("End: " + CmdOptions.options.endX + ", " + CmdOptions.options.endY);
+        System.Console.WriteLine("Start: " + CmdOptions.options.startX + ", " + CmdOptions.options.startY);
+
         //at first, generate 50 mazes to get the minimum depth and the maximum depth
         int minDepth = mazeHeight*mazeWidth;
         int maxDepth = -1;
         for(int i = 0; i < 50; i++) {
           Maze maze = new Maze(mazeHeight, mazeWidth, rnd);
           maze.Generate();
-          int? depth = maze.FindShortestPath(CmdOptions.options.endY, CmdOptions.options.endX, CmdOptions.options.startX, CmdOptions.options.startY);
+          int? depth = maze.FindShortestPath(CmdOptions.options.endX, CmdOptions.options.endY, CmdOptions.options.startX, CmdOptions.options.startY, wri);
           if(depth != null) {
             if(depth < minDepth) {
               minDepth = (int)depth;
@@ -630,6 +649,7 @@ namespace _098svg
           }
         }
 
+        Console.WriteLine(CmdOptions.options.difficulty);
         int normalizedDifficulty = (int)Math.Round(((maxDepth - minDepth) * CmdOptions.options.difficulty) + minDepth);
         Console.WriteLine(normalizedDifficulty.ToString());
 
@@ -637,7 +657,7 @@ namespace _098svg
         do {
           Maze maze = new Maze(mazeHeight, mazeWidth, rnd);
           maze.Generate();
-          int? depth = maze.FindShortestPath(CmdOptions.options.endY, CmdOptions.options.endX, CmdOptions.options.startX, CmdOptions.options.startY);
+          int? depth = maze.FindShortestPath(CmdOptions.options.endX, CmdOptions.options.endY, CmdOptions.options.startX, CmdOptions.options.startY, wri);
           if(depth != null) {
             if(Math.Abs(normalizedDifficulty - (int)depth) < 3)
             {
@@ -649,15 +669,9 @@ namespace _098svg
 
         //and then color the starting and ending points
         int penSize = CmdOptions.options.penSize;
-        //DrawLine(wri, 0, 0, penSize, DrawWall.TOP, 255, 255, 255);
-        //DrawLine(wri, (mazeWidth-1)*-penSize, (mazeHeight-1)*-penSize, penSize, DrawWall.BOTTOM, 255, 255, 255);
 
         drawRectangle(wri, CmdOptions.options.endX*penSize + 1, CmdOptions.options.endY*penSize + 1, penSize - 2, "#ff0000");
-        System.Console.WriteLine("End: " + CmdOptions.options.endX + ", " + CmdOptions.options.endY);
         drawRectangle(wri, CmdOptions.options.startX*penSize + 1, CmdOptions.options.startY*penSize + 1, penSize - 2, "#00ff00");
-        System.Console.WriteLine("Start: " + CmdOptions.options.startX + ", " + CmdOptions.options.startY);
-        
-
         wri.WriteLine("</svg>");
       }
     }

@@ -4,8 +4,8 @@
 # 098svg -c config.txt
 
 html        = 1
-columns     = 15
-rows        = 15
+columns     = 12
+rows        = 8
 difficulty  = 0
 start       = [1,2]
 end         = [0,0]
