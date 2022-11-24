@@ -193,8 +193,8 @@ namespace _083animation
       name = "Lukáš Polák";
 
       // Frame size in pixels.
-      wid = 640;
-      hei = 480;
+      wid = 1920;
+      hei = 1080;
 
       // Animation.
       from =  0.0;
@@ -204,7 +204,7 @@ namespace _083animation
       Animation.fps = fps;
 
       // Form params.
-      param = "12";
+      param = "2763";
       tooltip = "<long> .. random seed for the number generator";
     }
 
@@ -258,9 +258,11 @@ namespace _083animation
       double totalCircles = ap.generated.Count;
       double coefficient = totalFrames / totalCircles;
 
+      // temporarily remove the biggest circle
       Circle c = ap.generated[0];
       _ = ap.generated.Remove(c);
 
+      // shuffle the circles to get a random drawing order
       Extensions.Shuffle(ap.generated);
 
       ap.generated.Insert(0, c);
@@ -290,11 +292,11 @@ namespace _083animation
 
       c.SetAntiAlias(true);
 
+      // calculates the current frame number
       int frameFromTime = (int)Math.Floor((end - start) * fps) - (int)Math.Floor((end - time) * fps) + 1;
 
       // Debug.WriteLine("{0}, {1}", frameFromTime, time);
 
-      //the needed values were computed, now just draw the circles
       foreach (Circle circle in ap.generated)
       {
         if (circle.frameToRender > frameFromTime && !circle.alreadyRendered)
