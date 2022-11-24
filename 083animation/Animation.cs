@@ -3,15 +3,12 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
 using System.Globalization;
-using System.Linq;
 using System.Numerics;
-using System.Threading;
 using CircleCanvas;
 using MathSupport;
 
 namespace _083animation
-{
-
+{ 
   /// <summary>
   /// Class representing a circle in an Apollonian gasket.
   /// </summary>
@@ -20,11 +17,13 @@ namespace _083animation
     public Complex coordinates;
     public double radius;
     public int frameToRender;
+    public bool alreadyRendered;
 
     public Circle (double x, double y, double r)
     {
       radius = r;
       coordinates = new Complex(x, y);
+      alreadyRendered = false;
     }
 
     /// <summary>
@@ -175,8 +174,8 @@ namespace _083animation
   public class Animation
   {
     static ApollonianGasket ap;
-    static double offsetX, offsetY, normalizationConst, size;
-    static int paddingX, paddingY, currentFrame;
+    static double offsetX, offsetY, normalizationConst, size, fps;
+    static int paddingX, paddingY;
 
     /// <summary>
     /// Form data initialization.
@@ -202,6 +201,8 @@ namespace _083animation
       to   = 10.0;
       fps  = 25.0;
 
+      Animation.fps = fps;
+
       // Form params.
       param = "12";
       tooltip = "<long> .. random seed for the number generator";
@@ -219,7 +220,6 @@ namespace _083animation
     /// <param name="param">Text parameter field from the form.</param>
     public static void InitAnimation (int width, int height, double start, double end, double fps, string param)
     {
-      // {{ TODO: put your init code here
       RandomJames rnd = new RandomJames();
 
       if (long.TryParse(param, NumberStyles.Number, CultureInfo.InvariantCulture, out long seed))
@@ -258,14 +258,17 @@ namespace _083animation
       double totalCircles = ap.generated.Count;
       double coefficient = totalFrames / totalCircles;
 
-      //ap.generated = ap.generated.OrderByDescending(o => Math.Abs(o.radius)).ToList();
+      Circle c = ap.generated[0];
+      _ = ap.generated.Remove(c);
 
+      Extensions.Shuffle(ap.generated);
+
+      ap.generated.Insert(0, c);
+      
       for (int i = 0; i < ap.generated.Count; i++)
       {
-        ap.generated[i].frameToRender = (int)Math.Floor(coefficient * i);
+        ap.generated[i].frameToRender = (int)Math.Floor(coefficient * i) + 3;
       }
-
-      currentFrame = 0;
     }
 
     /// <summary>
@@ -287,19 +290,41 @@ namespace _083animation
 
       c.SetAntiAlias(true);
 
+      int frameFromTime = (int)Math.Floor((end - start) * fps) - (int)Math.Floor((end - time) * fps) + 1;
 
-      Interlocked.Increment(ref currentFrame);
-      Debug.WriteLine("{0}, {1}", currentFrame, time);
+      // Debug.WriteLine("{0}, {1}", frameFromTime, time);
 
       //the needed values were computed, now just draw the circles
       foreach (Circle circle in ap.generated)
       {
-        if (circle.frameToRender > currentFrame)
+        if (circle.frameToRender > frameFromTime && !circle.alreadyRendered)
         {
-          return;
+          continue;
         }
+        circle.alreadyRendered = true;
         c.SetColor(Color.FromArgb(rnd.RandomInteger(0, 255), rnd.RandomInteger(0, 255), rnd.RandomInteger(0, 255)));
         c.FillDisc((float)((circle.coordinates.Real - offsetX) * normalizationConst * size) + (float)size + paddingX, (float)((circle.coordinates.Imaginary - offsetY) * size * normalizationConst) + (float)size + paddingY, (float)Math.Abs(circle.radius * normalizationConst * size));
+      }
+    }
+  }
+
+  static class Extensions
+  {
+    /// <summary>
+    /// Random IList<typeparamref name="T"/> shuffle.
+    /// Taken from http://stackoverflow.com/questions/273313/randomize-a-listt
+    /// </summary>
+    public static void Shuffle<T> (this IList<T> list)
+    {
+      int n = list.Count;
+      RandomJames rnd = new RandomJames();
+      while (n > 1)
+      {
+        n--;
+        int k = rnd.RandomInteger(0, n + 1);
+        T value = list[k];
+        list[k] = list[n];
+        list[n] = value;
       }
     }
   }
