@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
 using System.Globalization;
@@ -18,8 +19,7 @@ namespace _039terrain
     /// </summary>
     static void InitParams (out int iterations, out float roughness, out string param, out string tooltip, out string name)
     {
-      name       = "Josef Pelikán";
-
+      name       = "Lukáš Polák";
       iterations = 0;
       roughness  = 0.2f;
       param      = "";
@@ -114,6 +114,124 @@ namespace _039terrain
       Application.Idle += new EventHandler(Application_Idle);
     }
 
+    private class CustomVector
+    {
+      public Vector3 vect;
+      public int id;
+    }
+
+    float currentMinHeight;
+
+    static Random rnd = new Random();
+
+    private void CreateDiamondSquare (CustomVector[][] array, int size, float roughness)
+    {
+      int half = size / 2;
+      if (half < 1) return;
+
+      int arraySize = array.Length;
+
+      for (int z = half; z < arraySize; z += size)
+      {
+        for (int x = half; x < arraySize; x += size)
+        {
+          SquareStep(array, x % arraySize, z % arraySize, half, roughness);
+        }
+      }
+
+      int column = 0;
+      for (int x = 0; x < arraySize; x += half)
+      {
+        column++;
+        if (column % 2 == 1)
+        {
+          for (int z = half; z < arraySize; z += size)
+          {
+            DiamondStep(array, x % arraySize, z % arraySize, half, roughness);
+          }
+        }
+        else
+        {
+          for (int z = 0; z < arraySize; z += size)
+          {
+            DiamondStep(array, x % arraySize, z % arraySize, half, roughness);
+          }
+        }
+      }
+      CreateDiamondSquare(array, size / 2, roughness);
+    }
+
+    private void DiamondStep (CustomVector[][] array, int x, int z, int step, float roughness)
+    {
+      int arraySize = array.Length;
+
+      int count = 0;
+      double avg = 0.0f;
+      if (x - step >= 0)
+      {
+        avg += array[x - step][z].vect.Y;
+        count++;
+      }
+      if (x + step < arraySize)
+      {
+        avg += array[x + step][z].vect.Y;
+        count++;
+      }
+      if (z - step >= 0)
+      {
+        avg += array[x][z - step].vect.Y;
+        count++;
+      }
+      if (z + step < arraySize)
+      {
+        avg += array[x][z + step].vect.Y;
+        count++;
+      }
+      avg += RandomElev(step, roughness);
+      avg /= count;
+      if ((float)avg < currentMinHeight) currentMinHeight = (float)avg;
+      array[x][z].vect.Y = (float)avg;
+    }
+
+    private static float RandomElev(int range, float roughness)
+    {
+      int i = rnd.Next(100000);
+      Debug.WriteLine(range);
+      return ((i % (range * 2)) - range) * roughness;
+    }
+
+    private void SquareStep(CustomVector[][] array, int x, int z, int step, float roughness)
+    {
+      int arraySize = array.Length;
+
+      int count = 0;
+      double avg = 0.0f;
+      if (x - step >= 0 && z - step >= 0)
+      {
+        avg += array[x - step][z - step].vect.Y;
+        count++;
+      }
+      if (x - step >= 0 && z + step < arraySize)
+      {
+        avg += array[x - step][z + step].vect.Y;
+        count++;
+      }
+      if (x + step < arraySize && z - step >= 0)
+      {
+        avg += array[x + step][z - step].vect.Y;
+        count++;
+      }
+      if (x + step < arraySize && z + step < arraySize)
+      {
+        avg += array[x + step][z + step].vect.Y;
+        count++;
+      }
+      avg += RandomElev(step, roughness);
+      if(count > 0) avg /= count;
+      if ((float)avg < currentMinHeight) currentMinHeight = (float)avg;
+      array[x][z].vect.Y = (float)avg;
+    }
+
     /// <summary>
     /// [Re-]generate the terrain data.
     /// </summary>
@@ -126,6 +244,102 @@ namespace _039terrain
 
       scene.Reset();
 
+      iterations = 3;
+
+      int size = ((iterations + 1) * (iterations + 1)) + 1;
+      Debug.WriteLine(size);
+
+      double minValue = -0.5;
+      double maxValue = 0.5;
+
+      double xVal = 0;
+      double zVal = 0;
+
+      currentMinHeight = 0;
+
+      /* TODOS!!!
+       * - do not regenerate the entire board
+       * - fix the roughness parameter to work properly
+       * - add normals
+       * - add textures
+       * - add heightmaps
+       * - "Nastavení rozměrů pohoří (jednotek na stranu a na výšku)." ????
+       * - clean code
+       * */
+
+      CustomVector[][] grid = new CustomVector[size][];
+      for(int i = 1; i <= size; i++)
+      {
+        grid[i-1] = new CustomVector[size];
+        xVal = minValue + (maxValue - minValue) * (i - 1) / (size - 1);
+
+        for (int j = 1; j <= size; j++)
+        {
+          zVal = minValue + (maxValue - minValue) * (j - 1) / (size - 1);
+          grid[i - 1][j - 1] = new CustomVector();
+          grid[i - 1][j - 1].vect = new Vector3((float)xVal, 0, (float)zVal);
+          Debug.WriteLine("X: " + grid[i-1][j-1].vect.X + ", Y: " + grid[i-1][j-1].vect.Y + ", Z: " + grid[i-1][j-1].vect.Z + ", id: " + grid[i-1][j-1].id);
+        }
+      }
+
+      Debug.WriteLine(grid.Length * grid.Length);
+
+      //TODO: do not regenerate the entire board!
+      CreateDiamondSquare(grid, grid.Length, roughness);
+
+      Debug.WriteLine(grid);
+      Debug.WriteLine(currentMinHeight);
+
+      float norm = 0.5f;
+
+      for (int i = 0; i < grid.Length; i++)
+      {
+        for (int j = 0; j < grid.Length; j++)
+        {
+          float y = grid[i][j].vect.Y;
+
+          y = ((y / currentMinHeight) * norm * -1) + norm;
+
+          grid[i][j].vect.Y = y;
+
+          grid[i][j].id = scene.AddVertex(grid[i][j].vect);
+          scene.SetColor(grid[i][j].id, Vector3.UnitX);
+        }
+      }
+
+      //ted pro kazdej bod udelat trojuhelniky
+      for (int i = 0; i < grid.Length; i++)
+      {
+        for(int j = 0; j < grid.Length; j++)
+        {
+          Debug.WriteLine("X: " + grid[i][j].vect.X + ", Y: " + grid[i][j].vect.Y + ", Z: " + grid[i][j].vect.Z + ", id: " + grid[i][j].id);
+
+          if ((j < grid.Length - 1) && (i < grid.Length - 1))
+          {
+            //udelat trojuhelnik z bodu doprava a dolu
+            scene.AddTriangle(grid[i][j + 1].id, grid[i+1][j].id, grid[i][j].id);
+          }
+          if (j > 0 && i > 0)
+          {
+            //z bodu doleva a nahoru
+            scene.AddTriangle(grid[i][j].id, grid[i-1][j].id, grid[i][j-1].id);
+          }
+        }
+      }
+
+
+      //TODO: dodelat normalove vektory
+
+      /*
+      for (int i = 1; i <= size; i++)
+      {
+        double val = minValue + (maxValue - minValue) * (i - 1) / (size - 1);
+        Console.WriteLine(val);
+      }
+      */
+
+      /*
+
       // dummy rectangle, facing to the camera
       // notice that your terrain is supposed to be placed
       // in the XZ plane (elevation increases along the positive Y axis)
@@ -133,7 +347,6 @@ namespace _039terrain
       scene.AddVertex(new Vector3(-0.5f, 0.0f, +0.5f));        // 1
       scene.AddVertex(new Vector3(+0.5f, 0.0f, -0.5f));        // 2
       scene.AddVertex(new Vector3(+0.5f, 0.0f, +0.5f));        // 3
-
       scene.SetNormal(0, (Vector3.UnitY + roughness * (Vector3.UnitX + Vector3.UnitZ)).Normalized());
       scene.SetNormal(1, (Vector3.UnitY + roughness * 0.5f * (Vector3.UnitX + Vector3.UnitZ)).Normalized());
       scene.SetNormal(2, (Vector3.UnitY + roughness * 0.5f * (Vector3.UnitX + Vector3.UnitZ)).Normalized());
@@ -152,6 +365,7 @@ namespace _039terrain
 
       scene.AddTriangle(1, 2, 0);                          // last vertex is red
       scene.AddTriangle(2, 1, 3);                          // last vertex is white
+      */
 
       // this function uploads the data to the graphics card
       PrepareData();
