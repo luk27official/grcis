@@ -244,7 +244,7 @@ namespace _039terrain
 
       scene.Reset();
 
-      iterations = 3;
+      //iterations = 3;
 
       int size = ((iterations + 1) * (iterations + 1)) + 1;
       Debug.WriteLine(size);
@@ -277,7 +277,8 @@ namespace _039terrain
         {
           zVal = minValue + (maxValue - minValue) * (j - 1) / (size - 1);
           grid[i - 1][j - 1] = new CustomVector();
-          grid[i - 1][j - 1].vect = new Vector3((float)xVal, 0, (float)zVal);
+          //grid[i - 1][j - 1].vect = new Vector3((float)xVal, 0, (float)zVal);
+          grid[i - 1][j - 1].vect = new Vector3((float)xVal, (float)-rnd.NextDouble(), (float)zVal);
           Debug.WriteLine("X: " + grid[i-1][j-1].vect.X + ", Y: " + grid[i-1][j-1].vect.Y + ", Z: " + grid[i-1][j-1].vect.Z + ", id: " + grid[i-1][j-1].id);
         }
       }
@@ -298,12 +299,12 @@ namespace _039terrain
         {
           float y = grid[i][j].vect.Y;
 
-          y = ((y / currentMinHeight) * norm * -1) + norm;
+          y = (((y / currentMinHeight) * norm * -1) + norm) * (roughness / 5); // posledni clen aby se to nejak chovalo priblizne podle ty roughness
 
           grid[i][j].vect.Y = y;
 
           grid[i][j].id = scene.AddVertex(grid[i][j].vect);
-          scene.SetColor(grid[i][j].id, Vector3.UnitX);
+          //scene.SetColor(grid[i][j].id, Vector3.UnitX);
         }
       }
 
@@ -312,7 +313,7 @@ namespace _039terrain
       {
         for(int j = 0; j < grid.Length; j++)
         {
-          Debug.WriteLine("X: " + grid[i][j].vect.X + ", Y: " + grid[i][j].vect.Y + ", Z: " + grid[i][j].vect.Z + ", id: " + grid[i][j].id);
+          Debug.WriteLine("X: " + grid[i][j].vect.X + ", Y: " + grid[i][j].vect.Y + ", Z: " + grid[i][j].vect.Z + ", id: " + grid[i][j].id + ", currh" + currentMinHeight);
 
           if ((j < grid.Length - 1) && (i < grid.Length - 1))
           {
@@ -326,6 +327,8 @@ namespace _039terrain
           }
         }
       }
+
+      scene.GenerateColors(123);
 
 
       //TODO: dodelat normalove vektory
@@ -376,7 +379,7 @@ namespace _039terrain
         GL.DeleteTexture(textureId);
         textureId = 0;
       }
-      textureId = TexUtil.CreateTextureFromFile("cgg256.png", "../../cgg256.png");
+      //textureId = TexUtil.CreateTextureFromFile("cgg256.png", "../../cgg256.png");
 
       // simulation / hovercraft [re]initialization?
       InitSimulation(false);
