@@ -372,12 +372,13 @@ namespace _039terrain
        * - "Nastavení rozměrů pohoří (jednotek na stranu a na výšku)." ????
        * - clean code
        * */
+      int skip = -1;
 
       if(grid != null && grid.Length > size)
       {
-        int formerSize = (int)Math.Sqrt(grid.Length - 1);
-        Debug.WriteLine("A: " + formerSize + ", size: " + size);
-        int skip = (int)Math.Pow(2, (formerSize - (int)Math.Sqrt(size)));
+        int formerSize = (int)Math.Log(heightMap.Length - 1, 2);
+        Debug.WriteLine("A: " + formerSize + ", realsize: " + size + ", size: " + (int)Math.Log(size - 1, 2));
+        skip = (int)Math.Pow(2, formerSize - (int)Math.Log(size - 1, 2));
 
         Debug.WriteLine("SKIP:" + skip);
 
@@ -437,6 +438,7 @@ namespace _039terrain
 
       if(heightMap != null && heightMap.Length > size)
       {
+        // we do not need to do anything here
         Console.WriteLine("asdasd");
       }
       else if (heightMap != null && heightMap.Length < size)
@@ -471,11 +473,6 @@ namespace _039terrain
       {
         for (int j = 0; j < grid.Length; j++)
         {
-          if (!grid[i][j].rendered)
-          {
-            continue;
-          }
-
           float y = grid[i][j].vect.Y;
 
           //y *= (roughness / (float)5);
@@ -513,17 +510,36 @@ namespace _039terrain
       {
         for(int j = 0; j < grid.Length; j++)
         {
-          Debug.WriteLine("X: " + grid[i][j].vect.X + ", Y: " + grid[i][j].vect.Y + ", Z: " + grid[i][j].vect.Z + ", id: " + grid[i][j].id + ", currMin: " + currentMinHeight + ", currMax: " + currentMaxHeight);
+          //Debug.WriteLine("X: " + grid[i][j].vect.X + ", Y: " + grid[i][j].vect.Y + ", Z: " + grid[i][j].vect.Z + ", id: " + grid[i][j].id + ", currMin: " + currentMinHeight + ", currMax: " + currentMaxHeight);
 
-          if ((j < grid.Length - 1) && (i < grid.Length - 1))
+          if (skip != -1)
           {
-            //udelat trojuhelnik z bodu doprava a dolu
-            scene.AddTriangle(grid[i][j + 1].id, grid[i+1][j].id, grid[i][j].id);
+            if(j % skip == 0 && i % skip == 0)
+            {
+              if ((j < grid.Length - skip) && (i < grid.Length - skip))
+              {
+                //udelat trojuhelnik z bodu doprava a dolu
+                scene.AddTriangle(grid[i][j + skip].id, grid[i + skip][j].id, grid[i][j].id);
+              }
+              if (j >= skip && i >= skip)
+              {
+                //z bodu doleva a nahoru
+                scene.AddTriangle(grid[i][j].id, grid[i - skip][j].id, grid[i][j - skip].id);
+              }
+            }
           }
-          if (j > 0 && i > 0)
+          else
           {
-            //z bodu doleva a nahoru
-            scene.AddTriangle(grid[i][j].id, grid[i-1][j].id, grid[i][j-1].id);
+            if ((j < grid.Length - 1) && (i < grid.Length - 1))
+            {
+              //udelat trojuhelnik z bodu doprava a dolu
+              scene.AddTriangle(grid[i][j + 1].id, grid[i + 1][j].id, grid[i][j].id);
+            }
+            if (j > 0 && i > 0)
+            {
+              //z bodu doleva a nahoru
+              scene.AddTriangle(grid[i][j].id, grid[i - 1][j].id, grid[i][j - 1].id);
+            }
           }
         }
       }
