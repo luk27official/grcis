@@ -134,6 +134,8 @@ namespace _039terrain
     double[][] heightMap;
 
     CustomVector[][] grid;
+    Vector3[][] normals;
+
 
     float roughLast;
     int iterationsLast;
@@ -329,6 +331,89 @@ namespace _039terrain
 
     }
 
+    void SetTriangleTextures(int i1, int j1, int i2, int j2, int i3, int j3, bool isInner)
+    {
+      int[] iS = new int[] { i1, i2, i3 };
+      int[] jS = new int[] { j1, j2, j3 };
+
+      for(int y = 0; y < iS.Length; y++)
+      {
+        int i = iS[y];
+        int j = jS[y];
+
+        if ((float)heightMap[i][j] <= -0.1) //water
+        {
+          float d2 = (float)rnd.NextDouble();
+          Debug.WriteLine("id " + grid[i][j].id + " d2 " + d2);
+          scene.SetTxtCoord(grid[i][j].id, new Vector2(0.0f, 0.5f));
+        }
+        else if ((float)heightMap[i][j] <= 0.1)
+        {
+          float d2 = (float)rnd.NextDouble();
+          Debug.WriteLine("id " + grid[i][j].id + " d2 " + d2);
+          scene.SetTxtCoord(grid[i][j].id, new Vector2(0.5f, 0.0f));
+        }
+        else if ((float)heightMap[i][j] <= 0.7)
+        {
+          float d2 = (float)rnd.NextDouble();
+          Debug.WriteLine("id " + grid[i][j].id + " d2 " + d2);
+          scene.SetTxtCoord(grid[i][j].id, new Vector2(0.5f, 0.5f));
+        }
+        else
+        {
+          float d2 = (float)rnd.NextDouble();
+          Debug.WriteLine("id " + grid[i][j].id + " d2 " + d2);
+          scene.SetTxtCoord(grid[i][j].id, new Vector2(1.0f, 0.0f));
+        }
+      }
+
+
+    }
+
+    float h(int x, int y)
+    {
+      return (float)heightMap[x][y];
+    }
+
+    public static float VectLength(Vector3 vector)
+    {
+      float length = (float)Math.Sqrt(Math.Pow(vector.X, 2) + Math.Pow(vector.Y, 2) + Math.Pow(vector.Z, 2));
+      return length;
+    }
+
+    public static Vector3 Normalize (Vector3 vector)
+    {
+      float length = VectLength(vector);
+      Vector3 normalizedVector = new Vector3(vector.X / length, vector.Y / length, vector.Z / length);
+      return normalizedVector;
+    }
+
+    Vector3[][] computeNormals()
+    {
+      Vector3[][] normals = new Vector3[grid.Length][];
+
+      for (int y = 0; y < grid.Length; ++y)
+      {
+        normals[y] = new Vector3[grid.Length];
+        for (int x = 0; x < grid.Length; ++x)
+        {
+          // The ? : and ifs are necessary for the border cases.
+
+          float sx = h(x<grid.Length-1 ? x+1 : x, y) - h(x>0 ? x-1 : x, y);
+          if (x == 0 || x == grid.Length - 1)
+            sx *= 2;
+
+          float sy = h(x, y<grid.Length-1 ? y+1 : y) - h(x, y>0 ?  y-1 : y);
+          if (y == 0 || y == grid.Length - 1)
+            sy *= 2;
+
+          normals[y][x] = new Vector3(-sx * 1, 2 * 1, sy * 1);
+          normals[y][x] = Normalize(normals[y][x]);
+        }
+      }
+      return normals;
+    }
+
     /// <summary>
     /// [Re-]generate the terrain data.
     /// </summary>
@@ -338,6 +423,7 @@ namespace _039terrain
     private void Regenerate (int iterations, float roughness, string param)
     {
       bool forceRegenerate = false;
+      
       if(iterations == iterationsLast && param == paramsLast)
       {
         forceRegenerate = true;
@@ -365,8 +451,6 @@ namespace _039terrain
       currentMaxHeight = 0;
 
       /* TODOS!!!
-       * - do not regenerate the entire board
-       * - add normals
        * - add textures
        * - add heightmaps
        * - "Nastavení rozměrů pohoří (jednotek na stranu a na výšku)." ????
@@ -374,13 +458,14 @@ namespace _039terrain
        * */
       int skip = -1;
 
-      if(grid != null && grid.Length > size)
+      if(!forceRegenerate && grid != null && grid.Length > size)
       {
         int formerSize = (int)Math.Log(heightMap.Length - 1, 2);
         Debug.WriteLine("A: " + formerSize + ", realsize: " + size + ", size: " + (int)Math.Log(size - 1, 2));
         skip = (int)Math.Pow(2, formerSize - (int)Math.Log(size - 1, 2));
 
         Debug.WriteLine("SKIP:" + skip);
+        Debug.WriteLine("gs:" + grid.Length);
 
         for (int i = 0; i < grid.Length; i++)
         {
@@ -433,10 +518,7 @@ namespace _039terrain
 
       Debug.WriteLine(grid.Length * grid.Length);
 
-      //TODO: do not regenerate the entire board!
-      //CreateDiamondSquare(grid, grid.Length, roughness);
-
-      if(heightMap != null && heightMap.Length > size)
+      if(!forceRegenerate && heightMap != null && heightMap.Length > size)
       {
         // we do not need to do anything here
         Console.WriteLine("asdasd");
@@ -458,6 +540,7 @@ namespace _039terrain
           }
         }
         GenerateHeightMap(heightMap, roughness, size);
+        normals = computeNormals();
       }
       else if (heightMap == null || forceRegenerate)
       {
@@ -467,6 +550,7 @@ namespace _039terrain
           heightMap[i] = new double[size];
         }
         GenerateHeightMap(heightMap, roughness, size);
+        normals = computeNormals();
       }
 
       for (int i = 0; i < grid.Length; i++)
@@ -481,6 +565,8 @@ namespace _039terrain
           grid[i][j].vect.Y = (float)heightMap[i][j] / 2.5f;
 
           grid[i][j].id = scene.AddVertex(grid[i][j].vect);
+
+          scene.SetNormal(grid[i][j].id, normals[i][j]);
 
           if((float)heightMap[i][j] <= -0.3)
           {
@@ -519,11 +605,13 @@ namespace _039terrain
               if ((j < grid.Length - skip) && (i < grid.Length - skip))
               {
                 //udelat trojuhelnik z bodu doprava a dolu
+                //SetTriangleTextures(i, j + skip, i + skip, j, i, j, false);
                 scene.AddTriangle(grid[i][j + skip].id, grid[i + skip][j].id, grid[i][j].id);
               }
               if (j >= skip && i >= skip)
               {
                 //z bodu doleva a nahoru
+                //SetTriangleTextures(i,j,i - skip,j,i,j - skip, true);
                 scene.AddTriangle(grid[i][j].id, grid[i - skip][j].id, grid[i][j - skip].id);
               }
             }
@@ -533,11 +621,13 @@ namespace _039terrain
             if ((j < grid.Length - 1) && (i < grid.Length - 1))
             {
               //udelat trojuhelnik z bodu doprava a dolu
+              //SetTriangleTextures(i, j + 1, i + 1, j, i, j, false);
               scene.AddTriangle(grid[i][j + 1].id, grid[i + 1][j].id, grid[i][j].id);
             }
             if (j > 0 && i > 0)
             {
               //z bodu doleva a nahoru
+              //SetTriangleTextures(i, j, i - 1, j, i, j - 1, true);
               scene.AddTriangle(grid[i][j].id, grid[i - 1][j].id, grid[i][j - 1].id);
             }
           }
@@ -546,6 +636,25 @@ namespace _039terrain
 
       //scene.GenerateColors(123);
 
+      /*
+      // # P.xy store the position for which we want to calculate the normals
+      // # height() here is a function that return the height at a point in the terrain
+
+      // read neightbor heights using an arbitrary small offset
+      vec3 off = vec3(1.0, 1.0, 0.0);
+      float hL = height(P.xy - off.xz);
+      float hR = height(P.xy + off.xz);
+      float hD = height(P.xy - off.zy);
+      float hU = height(P.xy + off.zy);
+
+      // deduce terrain normal
+      N.x = hL - hR;
+      N.y = hD - hU;
+      N.z = 2.0;
+      N = normalize(N);
+      */
+
+      //scene.ComputeNormals();
 
       //TODO: dodelat normalove vektory
 
@@ -587,6 +696,8 @@ namespace _039terrain
       */
 
       // this function uploads the data to the graphics card
+      float txtExtreme = 1.0f + iterations;
+
       PrepareData();
 
       // load a texture
@@ -595,7 +706,10 @@ namespace _039terrain
         GL.DeleteTexture(textureId);
         textureId = 0;
       }
+
       //textureId = TexUtil.CreateTextureFromFile("cgg256.png", "../../cgg256.png");
+      //textureId = TexUtil.CreateTextureFromFile("txt.png", "../../txt.png");
+      textureId = TexUtil.CreateTextureFromFile("txt.png", "../../txt.png");
 
       // simulation / hovercraft [re]initialization?
       InitSimulation(false);
