@@ -80,7 +80,7 @@ namespace _039terrain
 
       // OpenGL init code:
       glControl1.VSync = true;
-      GL.ClearColor(Color.DarkBlue);
+      GL.ClearColor(Color.Black);
       GL.Enable(EnableCap.DepthTest);
 
       // VBO init:
@@ -120,9 +120,13 @@ namespace _039terrain
       public int id;
     }
 
-    float currentMinHeight;
+    float currentMinHeight = Int32.MaxValue;
+    float currentMaxHeight = Int32.MinValue;
 
     static Random rnd = new Random();
+
+    double[][] heightMap;
+    /*
 
     private void CreateDiamondSquare (CustomVector[][] array, int size, float roughness)
     {
@@ -187,17 +191,14 @@ namespace _039terrain
         avg += array[x][z + step].vect.Y;
         count++;
       }
-      avg += RandomElev(step, roughness);
       avg /= count;
-      if ((float)avg < currentMinHeight) currentMinHeight = (float)avg;
-      array[x][z].vect.Y = (float)avg;
-    }
+      //avg += RandomInRange(-(float)(step + roughness), +(float)(step + roughness));
+      avg += RandomInRange(-(float)(step * roughness / 10), +(float)(step * roughness / 10));
 
-    private static float RandomElev(int range, float roughness)
-    {
-      int i = rnd.Next(100000);
-      Debug.WriteLine(range);
-      return ((i % (range * 2)) - range) * roughness;
+      //avg += RandomInRange(-(step + (roughness / 50)), (step + (roughness / 50)));
+      if ((float)avg < currentMinHeight) currentMinHeight = (float)avg;
+      if ((float)avg > currentMaxHeight) currentMaxHeight = (float)avg;
+      array[x][z].vect.Y = (float)avg;
     }
 
     private void SquareStep(CustomVector[][] array, int x, int z, int step, float roughness)
@@ -226,10 +227,93 @@ namespace _039terrain
         avg += array[x + step][z + step].vect.Y;
         count++;
       }
-      avg += RandomElev(step, roughness);
-      if(count > 0) avg /= count;
+
+      avg /= count;
+      avg += RandomInRange(-(float)(step * roughness / 10), +(float)(step * roughness / 10));
+
+      //avg += RandomInRange(-(float)(step + Math.Pow(2, roughness)), +(float)(step + Math.Pow(2, roughness)));
       if ((float)avg < currentMinHeight) currentMinHeight = (float)avg;
+      if ((float)avg > currentMaxHeight) currentMaxHeight = (float)avg;
       array[x][z].vect.Y = (float)avg;
+    }
+
+    */
+
+    public static float NormalizeNumber (float value, float min, float max)
+    {
+      if (max - min == 0)
+        return value;
+      return (value - min) / (max - min) * 0.5f;
+    }
+
+    private static float RandomInRange(float min, float max)
+    {
+      return (float)Math.Floor(rnd.NextDouble() * (max - min) + min);
+    }
+
+    private void GenerateHeightMap (double[][] tiles, float roughness, int worldSize)
+    {
+      const float SEED = 0.0f;
+      tiles[0][0] = tiles[0][worldSize - 1] = tiles[worldSize - 1][worldSize - 1] = SEED;
+      double h = roughness / 5;
+      for (int sideLength = worldSize - 1; sideLength >= 2; sideLength /= 2, h /= 2.0)
+      {
+        int halfSide = sideLength / 2;
+
+        for (int x = 0; x < worldSize - 1; x += sideLength)
+        {
+          for (int y = 0; y < worldSize - 1; y += sideLength)
+          {
+            if(!Geometry.IsZero(tiles[x + halfSide][y + halfSide]))
+            {
+              continue;
+            }
+
+            double avg = tiles[x][y] + tiles[x + sideLength][y] + tiles[x][y + sideLength] + tiles[x + sideLength][y + sideLength];
+            avg /= 4.0;
+
+            if (avg > currentMaxHeight)
+              currentMaxHeight = (float)avg;
+            if (avg < currentMinHeight)
+              currentMinHeight = (float)avg;
+
+            tiles[x + halfSide][y + halfSide] = (float)(avg + (rnd.NextDouble() * 2 * h) - h);
+          }
+        }
+
+        for (int x = 0; x < worldSize - 1; x += halfSide)
+        {
+          for (int y = (x + halfSide) % sideLength; y < worldSize - 1; y += sideLength)
+          {
+            if (!Geometry.IsZero(tiles[x][y]))
+            {
+              continue;
+            }
+
+            double avg =
+              tiles[(x - halfSide + worldSize - 1) % (worldSize - 1)][y] + //left of center
+					    tiles[(x + halfSide) % (worldSize - 1)][y] + //right of center
+					    tiles[x][(y + halfSide) % (worldSize - 1)] + //below center
+					    tiles[x][(y - halfSide + worldSize - 1) % (worldSize - 1)]; //above center
+
+            avg /= 4.0;
+
+            avg = (float)(avg + (rnd.NextDouble() * 2 * h) - h);
+            tiles[x][y] = avg;
+            if (x == 0)
+              tiles[worldSize - 1][y] = avg;
+            if (y == 0)
+              tiles[x][worldSize - 1] = avg;
+
+            if (avg > currentMaxHeight)
+              currentMaxHeight = (float)avg;
+            if (avg < currentMinHeight)
+              currentMinHeight = (float)avg;
+
+          }
+        }
+      }
+
     }
 
     /// <summary>
@@ -246,8 +330,9 @@ namespace _039terrain
 
       //iterations = 3;
 
-      int size = ((iterations + 1) * (iterations + 1)) + 1;
-      Debug.WriteLine(size);
+      //int size = ((iterations + 1) * (iterations + 1)) + 1;
+      int size = (int)Math.Pow(2, iterations) + 1;
+      //Debug.WriteLine(size);
 
       double minValue = -0.5;
       double maxValue = 0.5;
@@ -256,6 +341,7 @@ namespace _039terrain
       double zVal = 0;
 
       currentMinHeight = 0;
+      currentMaxHeight = 0;
 
       /* TODOS!!!
        * - do not regenerate the entire board
@@ -278,15 +364,50 @@ namespace _039terrain
           zVal = minValue + (maxValue - minValue) * (j - 1) / (size - 1);
           grid[i - 1][j - 1] = new CustomVector();
           //grid[i - 1][j - 1].vect = new Vector3((float)xVal, 0, (float)zVal);
-          grid[i - 1][j - 1].vect = new Vector3((float)xVal, (float)-rnd.NextDouble(), (float)zVal);
-          Debug.WriteLine("X: " + grid[i-1][j-1].vect.X + ", Y: " + grid[i-1][j-1].vect.Y + ", Z: " + grid[i-1][j-1].vect.Z + ", id: " + grid[i-1][j-1].id);
+          grid[i - 1][j - 1].vect = new Vector3((float)xVal, (float)rnd.NextDouble() / 4, (float)zVal);
+          //Debug.WriteLine("X: " + grid[i-1][j-1].vect.X + ", Y: " + grid[i-1][j-1].vect.Y + ", Z: " + grid[i-1][j-1].vect.Z + ", id: " + grid[i-1][j-1].id);
         }
       }
 
       Debug.WriteLine(grid.Length * grid.Length);
 
       //TODO: do not regenerate the entire board!
-      CreateDiamondSquare(grid, grid.Length, roughness);
+      //CreateDiamondSquare(grid, grid.Length, roughness);
+
+      if(heightMap != null && heightMap.Length > size)
+      {
+
+      }
+      else if (heightMap != null && heightMap.Length < size)
+      {
+        double[][] temp = heightMap;
+        heightMap = new double[size][];
+        for(int i = 0; i < temp.Length; i++)
+        {
+          heightMap[i*2] = new double[size];
+          for(int j = 0; j <= size / 2; j++)
+          {
+            heightMap[i * 2][j * 2] = temp[i][j];
+          }
+          if (i > 0)
+          {
+            heightMap[i * 2 - 1] = new double[size];
+          }
+        }
+        GenerateHeightMap(heightMap, roughness, size);
+      }
+      else
+      {
+        heightMap = new double[size][];
+        for (int i = 0; i < grid.Length; i++)
+        {
+          heightMap[i] = new double[size];
+        }
+      }
+
+
+
+      GenerateHeightMap(heightMap, roughness, size);
 
       Debug.WriteLine(grid);
       Debug.WriteLine(currentMinHeight);
@@ -299,12 +420,33 @@ namespace _039terrain
         {
           float y = grid[i][j].vect.Y;
 
-          y = (((y / currentMinHeight) * norm * -1) + norm) * (roughness / 5); // posledni clen aby se to nejak chovalo priblizne podle ty roughness
-
-          grid[i][j].vect.Y = y;
+          //y *= (roughness / (float)5);
+          //y = ((y / currentMinHeight) * norm * -1); // posledni clen aby se to nejak chovalo priblizne podle ty roughness
+          //y = NormalizeNumber(float)hm[i][j], currentMinHeight, currentMaxHeight);
+          grid[i][j].vect.Y = (float)heightMap[i][j] / 2.5f;
 
           grid[i][j].id = scene.AddVertex(grid[i][j].vect);
-          //scene.SetColor(grid[i][j].id, Vector3.UnitX);
+
+          if((float)heightMap[i][j] <= -0.3)
+          {
+            scene.SetColor(grid[i][j].id, new Vector3(0.0369f, 0.0141f, 0.470f));
+          }
+          else if ((float)heightMap[i][j] <= -0.1)
+          {
+            scene.SetColor(grid[i][j].id, new Vector3(0.00f, 0.0165f, 0.990f));
+          }
+          else if ((float)heightMap[i][j] <= 0.1)
+          {
+            scene.SetColor(grid[i][j].id, new Vector3(0.00f, 0.520f, 0.0520f));
+          }
+          else if ((float)heightMap[i][j] <= 0.7)
+          {
+            scene.SetColor(grid[i][j].id, new Vector3(0.640f, 0.554f, 0.0640f));
+          }
+          else
+          {
+            scene.SetColor(grid[i][j].id, new Vector3(0.980f, 0.979f, 0.970f));
+          }
         }
       }
 
@@ -313,7 +455,7 @@ namespace _039terrain
       {
         for(int j = 0; j < grid.Length; j++)
         {
-          Debug.WriteLine("X: " + grid[i][j].vect.X + ", Y: " + grid[i][j].vect.Y + ", Z: " + grid[i][j].vect.Z + ", id: " + grid[i][j].id + ", currh" + currentMinHeight);
+          Debug.WriteLine("X: " + grid[i][j].vect.X + ", Y: " + grid[i][j].vect.Y + ", Z: " + grid[i][j].vect.Z + ", id: " + grid[i][j].id + ", currMin: " + currentMinHeight + ", currMax: " + currentMaxHeight);
 
           if ((j < grid.Length - 1) && (i < grid.Length - 1))
           {
@@ -328,7 +470,7 @@ namespace _039terrain
         }
       }
 
-      scene.GenerateColors(123);
+      //scene.GenerateColors(123);
 
 
       //TODO: dodelat normalove vektory
