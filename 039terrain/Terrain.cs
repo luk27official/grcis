@@ -263,7 +263,7 @@ namespace _039terrain
 
     private static float RandomInRange(float min, float max)
     {
-      return (float)Math.Floor(rnd.NextDouble() * (max - min) + min);
+      return (float)(rnd.NextDouble() * (max - min) + min);
     }
 
     private void GenerateHeightMap (double[][] tiles, float roughness, int worldSize)
@@ -570,23 +570,31 @@ namespace _039terrain
 
           if((float)heightMap[i][j] <= -0.3)
           {
-            scene.SetColor(grid[i][j].id, new Vector3(0.0369f, 0.0141f, 0.470f));
+            scene.SetColor(grid[i][j].id, new Vector3(0.0f, RandomInRange(0.03f, 0.04f), RandomInRange(0.35f, 0.45f)));
           }
           else if ((float)heightMap[i][j] <= -0.1)
           {
-            scene.SetColor(grid[i][j].id, new Vector3(0.00f, 0.0165f, 0.990f));
+            //0.00, 0.0683, 0.820
+            //0.00, 0.511, 0.930
+            scene.SetColor(grid[i][j].id, new Vector3(0.0f, RandomInRange(0.1f, 0.4f), RandomInRange(0.8f, 0.9f)));
           }
           else if ((float)heightMap[i][j] <= 0.1)
           {
-            scene.SetColor(grid[i][j].id, new Vector3(0.00f, 0.520f, 0.0520f));
+            //0.0216, 0.540, 0.125
+            //0.166, 0.790, 0.291
+            scene.SetColor(grid[i][j].id, new Vector3(RandomInRange(0.05f, 0.15f), RandomInRange(0.55f, 0.75f), RandomInRange(0.15f, 0.25f)));
           }
           else if ((float)heightMap[i][j] <= 0.7)
           {
-            scene.SetColor(grid[i][j].id, new Vector3(0.640f, 0.554f, 0.0640f));
+            //0.910, 0.806, 0.0182
+            //0.370, 0.329, 0.0148
+            scene.SetColor(grid[i][j].id, new Vector3(RandomInRange(0.6f, 0.8f), RandomInRange(0.4f, 0.6f), RandomInRange(0.01f, 0.02f)));
           }
           else
           {
-            scene.SetColor(grid[i][j].id, new Vector3(0.980f, 0.979f, 0.970f));
+            //0.970, 0.970, 0.970
+            //0.890, 0.890, 0.890
+            scene.SetColor(grid[i][j].id, new Vector3(RandomInRange(0.9f, 0.97f), RandomInRange(0.9f, 0.97f), RandomInRange(0.9f, 0.97f)));
           }
         }
       }
