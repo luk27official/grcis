@@ -118,6 +118,12 @@ namespace _039terrain
     {
       public Vector3 vect;
       public int id;
+      public bool rendered;
+
+      public CustomVector()
+      {
+        this.rendered = true;
+      }
     }
 
     float currentMinHeight = Int32.MaxValue;
@@ -126,6 +132,13 @@ namespace _039terrain
     static Random rnd = new Random();
 
     double[][] heightMap;
+
+    CustomVector[][] grid;
+
+    float roughLast;
+    int iterationsLast;
+    string paramsLast;
+
     /*
 
     private void CreateDiamondSquare (CustomVector[][] array, int size, float roughness)
@@ -324,7 +337,15 @@ namespace _039terrain
     /// <param name="param">Optional text parameter.</param>
     private void Regenerate (int iterations, float roughness, string param)
     {
-      // !!!{{ TODO: add terrain regeneration code here (to reflect the given terrain parameters)
+      bool forceRegenerate = false;
+      if(iterations == iterationsLast && param == paramsLast)
+      {
+        forceRegenerate = true;
+      }
+
+      iterationsLast = iterations;
+      roughLast = roughness;
+      paramsLast = param;
 
       scene.Reset();
 
@@ -345,7 +366,6 @@ namespace _039terrain
 
       /* TODOS!!!
        * - do not regenerate the entire board
-       * - fix the roughness parameter to work properly
        * - add normals
        * - add textures
        * - add heightmaps
@@ -353,21 +373,62 @@ namespace _039terrain
        * - clean code
        * */
 
-      CustomVector[][] grid = new CustomVector[size][];
-      for(int i = 1; i <= size; i++)
+      if(grid != null && grid.Length > size)
       {
-        grid[i-1] = new CustomVector[size];
-        xVal = minValue + (maxValue - minValue) * (i - 1) / (size - 1);
+        int formerSize = (int)Math.Sqrt(grid.Length - 1);
+        Debug.WriteLine("A: " + formerSize + ", size: " + size);
+        int skip = (int)Math.Pow(2, (formerSize - (int)Math.Sqrt(size)));
 
-        for (int j = 1; j <= size; j++)
+        Debug.WriteLine("SKIP:" + skip);
+
+        for (int i = 0; i < grid.Length; i++)
         {
-          zVal = minValue + (maxValue - minValue) * (j - 1) / (size - 1);
-          grid[i - 1][j - 1] = new CustomVector();
-          //grid[i - 1][j - 1].vect = new Vector3((float)xVal, 0, (float)zVal);
-          grid[i - 1][j - 1].vect = new Vector3((float)xVal, (float)rnd.NextDouble() / 4, (float)zVal);
-          //Debug.WriteLine("X: " + grid[i-1][j-1].vect.X + ", Y: " + grid[i-1][j-1].vect.Y + ", Z: " + grid[i-1][j-1].vect.Z + ", id: " + grid[i-1][j-1].id);
+          for(int j = 0; j < grid.Length; j++)
+          {
+            if(i % skip == 0 && j % skip == 0)
+            {
+              grid[i][j].rendered = true;
+            }
+            else
+            {
+              grid[i][j].rendered = false;
+            } 
+          }
         }
       }
+      else if (grid != null && grid.Length < size) //zjemnit
+      {
+        grid = new CustomVector[size][];
+        for (int i = 1; i <= size; i++)
+        {
+          grid[i - 1] = new CustomVector[size];
+          xVal = minValue + (maxValue - minValue) * (i - 1) / (size - 1);
+
+          for (int j = 1; j <= size; j++)
+          {
+            zVal = minValue + (maxValue - minValue) * (j - 1) / (size - 1);
+            grid[i - 1][j - 1] = new CustomVector();
+            grid[i - 1][j - 1].vect = new Vector3((float)xVal, (float)rnd.NextDouble() / 4, (float)zVal);
+          }
+        }
+      }
+      else if (grid == null || forceRegenerate) //vygeneruj novy uplne
+      {
+        grid = new CustomVector[size][];
+        for (int i = 1; i <= size; i++)
+        {
+          grid[i - 1] = new CustomVector[size];
+          xVal = minValue + (maxValue - minValue) * (i - 1) / (size - 1);
+
+          for (int j = 1; j <= size; j++)
+          {
+            zVal = minValue + (maxValue - minValue) * (j - 1) / (size - 1);
+            grid[i - 1][j - 1] = new CustomVector();
+            grid[i - 1][j - 1].vect = new Vector3((float)xVal, (float)rnd.NextDouble() / 4, (float)zVal);
+          }
+        }
+      }
+
 
       Debug.WriteLine(grid.Length * grid.Length);
 
@@ -376,7 +437,7 @@ namespace _039terrain
 
       if(heightMap != null && heightMap.Length > size)
       {
-
+        Console.WriteLine("asdasd");
       }
       else if (heightMap != null && heightMap.Length < size)
       {
@@ -396,28 +457,25 @@ namespace _039terrain
         }
         GenerateHeightMap(heightMap, roughness, size);
       }
-      else
+      else if (heightMap == null || forceRegenerate)
       {
         heightMap = new double[size][];
         for (int i = 0; i < grid.Length; i++)
         {
           heightMap[i] = new double[size];
         }
+        GenerateHeightMap(heightMap, roughness, size);
       }
-
-
-
-      GenerateHeightMap(heightMap, roughness, size);
-
-      Debug.WriteLine(grid);
-      Debug.WriteLine(currentMinHeight);
-
-      float norm = 0.5f;
 
       for (int i = 0; i < grid.Length; i++)
       {
         for (int j = 0; j < grid.Length; j++)
         {
+          if (!grid[i][j].rendered)
+          {
+            continue;
+          }
+
           float y = grid[i][j].vect.Y;
 
           //y *= (roughness / (float)5);
