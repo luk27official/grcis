@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
 using System.Globalization;
+using System.IO;
 using System.Windows.Forms;
 using MathSupport;
 using OpenglSupport;
@@ -136,123 +137,10 @@ namespace _039terrain
     CustomVector[][] grid;
     Vector3[][] normals;
 
-
+    bool precomputed = false;
     float roughLast;
     int iterationsLast;
     string paramsLast;
-
-    /*
-
-    private void CreateDiamondSquare (CustomVector[][] array, int size, float roughness)
-    {
-      int half = size / 2;
-      if (half < 1) return;
-
-      int arraySize = array.Length;
-
-      for (int z = half; z < arraySize; z += size)
-      {
-        for (int x = half; x < arraySize; x += size)
-        {
-          SquareStep(array, x % arraySize, z % arraySize, half, roughness);
-        }
-      }
-
-      int column = 0;
-      for (int x = 0; x < arraySize; x += half)
-      {
-        column++;
-        if (column % 2 == 1)
-        {
-          for (int z = half; z < arraySize; z += size)
-          {
-            DiamondStep(array, x % arraySize, z % arraySize, half, roughness);
-          }
-        }
-        else
-        {
-          for (int z = 0; z < arraySize; z += size)
-          {
-            DiamondStep(array, x % arraySize, z % arraySize, half, roughness);
-          }
-        }
-      }
-      CreateDiamondSquare(array, size / 2, roughness);
-    }
-
-    private void DiamondStep (CustomVector[][] array, int x, int z, int step, float roughness)
-    {
-      int arraySize = array.Length;
-
-      int count = 0;
-      double avg = 0.0f;
-      if (x - step >= 0)
-      {
-        avg += array[x - step][z].vect.Y;
-        count++;
-      }
-      if (x + step < arraySize)
-      {
-        avg += array[x + step][z].vect.Y;
-        count++;
-      }
-      if (z - step >= 0)
-      {
-        avg += array[x][z - step].vect.Y;
-        count++;
-      }
-      if (z + step < arraySize)
-      {
-        avg += array[x][z + step].vect.Y;
-        count++;
-      }
-      avg /= count;
-      //avg += RandomInRange(-(float)(step + roughness), +(float)(step + roughness));
-      avg += RandomInRange(-(float)(step * roughness / 10), +(float)(step * roughness / 10));
-
-      //avg += RandomInRange(-(step + (roughness / 50)), (step + (roughness / 50)));
-      if ((float)avg < currentMinHeight) currentMinHeight = (float)avg;
-      if ((float)avg > currentMaxHeight) currentMaxHeight = (float)avg;
-      array[x][z].vect.Y = (float)avg;
-    }
-
-    private void SquareStep(CustomVector[][] array, int x, int z, int step, float roughness)
-    {
-      int arraySize = array.Length;
-
-      int count = 0;
-      double avg = 0.0f;
-      if (x - step >= 0 && z - step >= 0)
-      {
-        avg += array[x - step][z - step].vect.Y;
-        count++;
-      }
-      if (x - step >= 0 && z + step < arraySize)
-      {
-        avg += array[x - step][z + step].vect.Y;
-        count++;
-      }
-      if (x + step < arraySize && z - step >= 0)
-      {
-        avg += array[x + step][z - step].vect.Y;
-        count++;
-      }
-      if (x + step < arraySize && z + step < arraySize)
-      {
-        avg += array[x + step][z + step].vect.Y;
-        count++;
-      }
-
-      avg /= count;
-      avg += RandomInRange(-(float)(step * roughness / 10), +(float)(step * roughness / 10));
-
-      //avg += RandomInRange(-(float)(step + Math.Pow(2, roughness)), +(float)(step + Math.Pow(2, roughness)));
-      if ((float)avg < currentMinHeight) currentMinHeight = (float)avg;
-      if ((float)avg > currentMaxHeight) currentMaxHeight = (float)avg;
-      array[x][z].vect.Y = (float)avg;
-    }
-
-    */
 
     public static float NormalizeNumber (float value, float min, float max)
     {
@@ -269,7 +157,10 @@ namespace _039terrain
     private void GenerateHeightMap (double[][] tiles, float roughness, int worldSize)
     {
       const float SEED = 0.0f;
-      tiles[0][0] = tiles[0][worldSize - 1] = tiles[worldSize - 1][worldSize - 1] = SEED;
+      if(!precomputed)
+      {
+        tiles[0][0] = tiles[0][worldSize - 1] = tiles[worldSize - 1][worldSize - 1] = SEED;
+      }
       double h = roughness / 5;
       for (int sideLength = worldSize - 1; sideLength >= 2; sideLength /= 2, h /= 2.0)
       {
@@ -281,7 +172,15 @@ namespace _039terrain
           {
             if(!Geometry.IsZero(tiles[x + halfSide][y + halfSide]))
             {
-              continue;
+              //because we do not know the roughness param of the precomputed heightmap, we will re-calculate the edges...
+              if (precomputed && x != 0 && y != 0 && x != worldSize - 1 && y != worldSize - 1)
+              {
+                continue;
+              }
+              else if (!precomputed)
+              {
+                continue;
+              }
             }
 
             double avg = tiles[x][y] + tiles[x + sideLength][y] + tiles[x][y + sideLength] + tiles[x + sideLength][y + sideLength];
@@ -302,7 +201,15 @@ namespace _039terrain
           {
             if (!Geometry.IsZero(tiles[x][y]))
             {
-              continue;
+              //because we do not know the roughness param of the precomputed heightmap, we will re-calculate the edges...
+              if (precomputed && x != 0 && y != 0 && x != worldSize - 1 && y != worldSize - 1)
+              {
+                continue;
+              }
+              else if (!precomputed)
+              {
+                continue;
+              }
             }
 
             double avg =
@@ -314,11 +221,14 @@ namespace _039terrain
             avg /= 4.0;
 
             avg = (float)(avg + (rnd.NextDouble() * 2 * h) - h);
+
             tiles[x][y] = avg;
-            if (x == 0)
+
+            if (x == 0) 
               tiles[worldSize - 1][y] = avg;
             if (y == 0)
               tiles[x][worldSize - 1] = avg;
+            
 
             if (avg > currentMaxHeight)
               currentMaxHeight = (float)avg;
@@ -397,8 +307,6 @@ namespace _039terrain
         normals[y] = new Vector3[grid.Length];
         for (int x = 0; x < grid.Length; ++x)
         {
-          // The ? : and ifs are necessary for the border cases.
-
           float sx = h(x<grid.Length-1 ? x+1 : x, y) - h(x>0 ? x-1 : x, y);
           if (x == 0 || x == grid.Length - 1)
             sx *= 2;
@@ -407,7 +315,7 @@ namespace _039terrain
           if (y == 0 || y == grid.Length - 1)
             sy *= 2;
 
-          normals[y][x] = new Vector3(-sx * 1, 2 * 1, sy * 1);
+          normals[y][x] = new Vector3(-sx, 2, sy);
           normals[y][x] = Normalize(normals[y][x]);
         }
       }
@@ -429,10 +337,6 @@ namespace _039terrain
         forceRegenerate = true;
       }
 
-      iterationsLast = iterations;
-      roughLast = roughness;
-      paramsLast = param;
-
       scene.Reset();
 
       //iterations = 3;
@@ -452,13 +356,11 @@ namespace _039terrain
 
       /* TODOS!!!
        * - add textures
-       * - add heightmaps
-       * - "Nastavení rozměrů pohoří (jednotek na stranu a na výšku)." ????
        * - clean code
        * */
       int skip = -1;
 
-      if(!forceRegenerate && grid != null && grid.Length > size)
+      if(!forceRegenerate && grid != null && grid.Length > size) //zhrubne teren
       {
         int formerSize = (int)Math.Log(heightMap.Length - 1, 2);
         Debug.WriteLine("A: " + formerSize + ", realsize: " + size + ", size: " + (int)Math.Log(size - 1, 2));
@@ -516,14 +418,72 @@ namespace _039terrain
       }
 
 
+      if(param.Length > 0 && paramsLast != param)
+      {
+        //custom heightmap
+        try
+        {
+          Bitmap bmp = new Bitmap(param);
+          //check bmp size 2^n+1
+          //it is better to reject if the iterations number is higher than the bmp size (ideally the user should enter their size)
+          if(Math.Log(bmp.Width - 1, 2) != Math.Floor(Math.Log(bmp.Width - 1, 2)) || Math.Log(bmp.Width - 1, 2) < iterations)
+          {
+            throw new Exception("Invalid heightmap size");
+          }
+
+          grid = new CustomVector[bmp.Width][];
+
+          precomputed = true;
+
+          for (int i = 1; i <= bmp.Width; i++)
+          {
+            grid[i - 1] = new CustomVector[bmp.Width];
+            xVal = minValue + (maxValue - minValue) * (i - 1) / (bmp.Width - 1);
+
+            for (int j = 1; j <= bmp.Width; j++)
+            {
+              zVal = minValue + (maxValue - minValue) * (j - 1) / (bmp.Width - 1);
+              grid[i - 1][j - 1] = new CustomVector();
+              grid[i - 1][j - 1].vect = new Vector3((float)xVal, 0, (float)zVal);
+            }
+          }
+
+          double[][] newhm = new double[bmp.Width][];
+
+          for (int i = 0; i < bmp.Width; i++)
+          {
+            newhm[i] = new double[bmp.Width];
+            for(int j = 0; j < bmp.Width; j++)
+            {
+              Color c = bmp.GetPixel(i, j);
+              float color = 1 - (c.G / (float)255) - 0.5f;
+              Debug.WriteLine(color);
+              newhm[i][j] = color;
+            }
+          }
+
+          heightMap = newhm;
+        }
+        catch (Exception e)
+        {
+          precomputed = false;
+          Debug.WriteLine(e.Message);
+          GenerateHeightMap(heightMap, roughness, size);
+        }
+        finally
+        {
+          normals = computeNormals();
+        }
+      }
+
       Debug.WriteLine(grid.Length * grid.Length);
 
-      if(!forceRegenerate && heightMap != null && heightMap.Length > size)
+      if(!forceRegenerate && heightMap != null && heightMap.Length > size) //zhrubne teren - heightmap bez reakce
       {
         // we do not need to do anything here
         Console.WriteLine("asdasd");
       }
-      else if (heightMap != null && heightMap.Length < size)
+      else if (heightMap != null && heightMap.Length < size) //zjemni se teren, potrebujeme novou heightmapu
       {
         double[][] temp = heightMap;
         heightMap = new double[size][];
@@ -544,6 +504,7 @@ namespace _039terrain
       }
       else if (heightMap == null || forceRegenerate)
       {
+        precomputed = false;
         heightMap = new double[size][];
         for (int i = 0; i < grid.Length; i++)
         {
@@ -578,7 +539,13 @@ namespace _039terrain
             //0.00, 0.511, 0.930
             scene.SetColor(grid[i][j].id, new Vector3(0.0f, RandomInRange(0.1f, 0.4f), RandomInRange(0.8f, 0.9f)));
           }
-          else if ((float)heightMap[i][j] <= 0.1)
+          else if ((float)heightMap[i][j] <= -0.05)
+          {
+            //0.890, 0.724, 0.125
+            //0.960, 0.807, 0.125
+            scene.SetColor(grid[i][j].id, new Vector3(RandomInRange(0.85f, 0.95f), RandomInRange(0.7f, 0.8f), 0.125f));
+          }
+          else if ((float)heightMap[i][j] <= 0.25)
           {
             //0.0216, 0.540, 0.125
             //0.166, 0.790, 0.291
@@ -640,67 +607,23 @@ namespace _039terrain
             }
           }
         }
+
+        iterationsLast = iterations;
+        roughLast = roughness;
+        paramsLast = param;
       }
-
-      //scene.GenerateColors(123);
-
-      /*
-      // # P.xy store the position for which we want to calculate the normals
-      // # height() here is a function that return the height at a point in the terrain
-
-      // read neightbor heights using an arbitrary small offset
-      vec3 off = vec3(1.0, 1.0, 0.0);
-      float hL = height(P.xy - off.xz);
-      float hR = height(P.xy + off.xz);
-      float hD = height(P.xy - off.zy);
-      float hU = height(P.xy + off.zy);
-
-      // deduce terrain normal
-      N.x = hL - hR;
-      N.y = hD - hU;
-      N.z = 2.0;
-      N = normalize(N);
-      */
-
-      //scene.ComputeNormals();
-
-      //TODO: dodelat normalove vektory
-
-      /*
-      for (int i = 1; i <= size; i++)
-      {
-        double val = minValue + (maxValue - minValue) * (i - 1) / (size - 1);
-        Console.WriteLine(val);
-      }
-      */
 
       /*
 
       // dummy rectangle, facing to the camera
       // notice that your terrain is supposed to be placed
       // in the XZ plane (elevation increases along the positive Y axis)
-      scene.AddVertex(new Vector3(-0.5f, roughness, -0.5f));   // 0
-      scene.AddVertex(new Vector3(-0.5f, 0.0f, +0.5f));        // 1
-      scene.AddVertex(new Vector3(+0.5f, 0.0f, -0.5f));        // 2
-      scene.AddVertex(new Vector3(+0.5f, 0.0f, +0.5f));        // 3
-      scene.SetNormal(0, (Vector3.UnitY + roughness * (Vector3.UnitX + Vector3.UnitZ)).Normalized());
-      scene.SetNormal(1, (Vector3.UnitY + roughness * 0.5f * (Vector3.UnitX + Vector3.UnitZ)).Normalized());
-      scene.SetNormal(2, (Vector3.UnitY + roughness * 0.5f * (Vector3.UnitX + Vector3.UnitZ)).Normalized());
-      scene.SetNormal(3, Vector3.UnitY );
 
       float txtExtreme = 1.0f + iterations;
       scene.SetTxtCoord(0, new Vector2(0.0f, 0.0f));
       scene.SetTxtCoord(1, new Vector2(0.0f, txtExtreme));
       scene.SetTxtCoord(2, new Vector2(txtExtreme, 0.0f));
       scene.SetTxtCoord(3, new Vector2(txtExtreme, txtExtreme));
-
-      scene.SetColor(0, Vector3.UnitX);                    // red
-      scene.SetColor(1, Vector3.UnitY);                    // green
-      scene.SetColor(2, Vector3.UnitZ);                    // blue
-      scene.SetColor(3, new Vector3(1.0f, 1.0f, 1.0f));    // white
-
-      scene.AddTriangle(1, 2, 0);                          // last vertex is red
-      scene.AddTriangle(2, 1, 3);                          // last vertex is white
       */
 
       // this function uploads the data to the graphics card
