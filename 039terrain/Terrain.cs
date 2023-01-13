@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
 using System.Globalization;
@@ -115,11 +114,14 @@ namespace _039terrain
       Application.Idle += new EventHandler(Application_Idle);
     }
 
+    /// <summary>
+    /// This class stores information about the vectors which are drawn.
+    /// </summary>
     private class CustomVector
     {
-      public Vector3 vect;
-      public int id;
-      public bool rendered;
+      public Vector3 vect;  //vector coords
+      public int id;        //id of the vector in OpenGL
+      public bool rendered; //true if the vector should be rendered in OpenGL
 
       public CustomVector()
       {
@@ -127,42 +129,43 @@ namespace _039terrain
       }
     }
 
-    float currentMinHeight = Int32.MaxValue;
-    float currentMaxHeight = Int32.MinValue;
-
     static Random rnd = new Random();
 
-    double[][] heightMap;
+    double[][] heightMap;   //an 2D array containing all the heights
+    CustomVector[][] grid;  //an 2D array containing the vectors to be drawn
+    Vector3[][] normals;    //an 2D array containing information about the normals
 
-    CustomVector[][] grid;
-    Vector3[][] normals;
+    bool precomputed = false; //true if the heightmap was not generated but loaded from a file
 
-    bool precomputed = false;
-    float roughLast;
-    int iterationsLast;
-    string paramsLast;
+    float roughLast;    //stores the last roughness value
+    int iterationsLast; //stores the last iterations value
+    string paramsLast;  //stores the last param value
 
-    public static float NormalizeNumber (float value, float min, float max)
-    {
-      if (max - min == 0)
-        return value;
-      return (value - min) / (max - min) * 0.5f;
-    }
-
+    /// <summary>
+    /// This method returns a random number from a given range.
+    /// </summary>
+    /// <param name="min">Minimal value</param>
+    /// <param name="max">Maximal value</param>
+    /// <returns>A random number from a given range</returns>
     private static float RandomInRange(float min, float max)
     {
       return (float)(rnd.NextDouble() * (max - min) + min);
     }
 
+    /// <summary>
+    /// This method generates the heights using the diamond square method.
+    /// </summary>
+    /// <param name="tiles">Grid of doubles to store the heights.</param>
+    /// <param name="roughness">Roughness parameter (0 to 5).</param>
+    /// <param name="worldSize">World size.</param>
     private void GenerateHeightMap (double[][] tiles, float roughness, int worldSize)
     {
-      const float SEED = 0.0f;
       if(!precomputed)
       {
-        tiles[0][0] = tiles[0][worldSize - 1] = tiles[worldSize - 1][worldSize - 1] = SEED;
+        tiles[0][0] = tiles[0][worldSize - 1] = tiles[worldSize - 1][worldSize - 1] = 0;
       }
-      double h = roughness / 5;
-      for (int sideLength = worldSize - 1; sideLength >= 2; sideLength /= 2, h /= 2.0)
+      double normalizedRoughness = roughness / 5;
+      for (int sideLength = worldSize - 1; sideLength >= 2; sideLength /= 2, normalizedRoughness /= 2.0)
       {
         int halfSide = sideLength / 2;
 
@@ -186,12 +189,7 @@ namespace _039terrain
             double avg = tiles[x][y] + tiles[x + sideLength][y] + tiles[x][y + sideLength] + tiles[x + sideLength][y + sideLength];
             avg /= 4.0;
 
-            if (avg > currentMaxHeight)
-              currentMaxHeight = (float)avg;
-            if (avg < currentMinHeight)
-              currentMinHeight = (float)avg;
-
-            tiles[x + halfSide][y + halfSide] = (float)(avg + (rnd.NextDouble() * 2 * h) - h);
+            tiles[x + halfSide][y + halfSide] = (float)(avg + (rnd.NextDouble() * 2 * normalizedRoughness) - normalizedRoughness);
           }
         }
 
@@ -213,113 +211,118 @@ namespace _039terrain
             }
 
             double avg =
-              tiles[(x - halfSide + worldSize - 1) % (worldSize - 1)][y] + //left of center
-					    tiles[(x + halfSide) % (worldSize - 1)][y] + //right of center
-					    tiles[x][(y + halfSide) % (worldSize - 1)] + //below center
-					    tiles[x][(y - halfSide + worldSize - 1) % (worldSize - 1)]; //above center
+              tiles[(x - halfSide + worldSize - 1) % (worldSize - 1)][y] + //left
+					    tiles[(x + halfSide) % (worldSize - 1)][y] + //right
+					    tiles[x][(y + halfSide) % (worldSize - 1)] + //below
+					    tiles[x][(y - halfSide + worldSize - 1) % (worldSize - 1)]; //above
 
             avg /= 4.0;
 
-            avg = (float)(avg + (rnd.NextDouble() * 2 * h) - h);
+            avg = (float)(avg + (rnd.NextDouble() * 2 * normalizedRoughness) - normalizedRoughness);
 
             tiles[x][y] = avg;
 
-            if (x == 0) 
+            if (x == 0)
+            {
               tiles[worldSize - 1][y] = avg;
+            }
             if (y == 0)
+            {
               tiles[x][worldSize - 1] = avg;
-            
-
-            if (avg > currentMaxHeight)
-              currentMaxHeight = (float)avg;
-            if (avg < currentMinHeight)
-              currentMinHeight = (float)avg;
-
+            }
           }
         }
       }
-
     }
 
-    void SetTriangleTextures(int i1, int j1, int i2, int j2, int i3, int j3, bool isInner)
-    {
-      int[] iS = new int[] { i1, i2, i3 };
-      int[] jS = new int[] { j1, j2, j3 };
-
-      for(int y = 0; y < iS.Length; y++)
-      {
-        int i = iS[y];
-        int j = jS[y];
-
-        if ((float)heightMap[i][j] <= -0.1) //water
-        {
-          float d2 = (float)rnd.NextDouble();
-          Debug.WriteLine("id " + grid[i][j].id + " d2 " + d2);
-          scene.SetTxtCoord(grid[i][j].id, new Vector2(0.0f, 0.5f));
-        }
-        else if ((float)heightMap[i][j] <= 0.1)
-        {
-          float d2 = (float)rnd.NextDouble();
-          Debug.WriteLine("id " + grid[i][j].id + " d2 " + d2);
-          scene.SetTxtCoord(grid[i][j].id, new Vector2(0.5f, 0.0f));
-        }
-        else if ((float)heightMap[i][j] <= 0.7)
-        {
-          float d2 = (float)rnd.NextDouble();
-          Debug.WriteLine("id " + grid[i][j].id + " d2 " + d2);
-          scene.SetTxtCoord(grid[i][j].id, new Vector2(0.5f, 0.5f));
-        }
-        else
-        {
-          float d2 = (float)rnd.NextDouble();
-          Debug.WriteLine("id " + grid[i][j].id + " d2 " + d2);
-          scene.SetTxtCoord(grid[i][j].id, new Vector2(1.0f, 0.0f));
-        }
-      }
-
-
-    }
-
-    float h(int x, int y)
+    /// <summary>
+    /// Returns the height of the point [x,y].
+    /// </summary>
+    /// <param name="x">x-coord</param>
+    /// <param name="y">y-coord</param>
+    /// <returns>The height.</returns>
+    private float ReturnHeightMapValue(int x, int y)
     {
       return (float)heightMap[x][y];
     }
 
-    public static float VectLength(Vector3 vector)
+    /// <summary>
+    /// This method returns the vector length.
+    /// </summary>
+    /// <param name="vector">The vector</param>
+    /// <returns>The vector length</returns>
+    public static float GetVectorLength(Vector3 vector)
     {
       float length = (float)Math.Sqrt(Math.Pow(vector.X, 2) + Math.Pow(vector.Y, 2) + Math.Pow(vector.Z, 2));
       return length;
     }
 
-    public static Vector3 Normalize (Vector3 vector)
+    /// <summary>
+    /// This static method computes a normalized vector (the length of the vector is 1).
+    /// </summary>
+    /// <param name="vector">Vector to be normalized</param>
+    /// <returns>The normalized vector</returns>
+    public static Vector3 NormalizeVector(Vector3 vector)
     {
-      float length = VectLength(vector);
+      float length = GetVectorLength(vector);
       Vector3 normalizedVector = new Vector3(vector.X / length, vector.Y / length, vector.Z / length);
       return normalizedVector;
     }
 
-    Vector3[][] computeNormals()
+    /// <summary>
+    /// This method computes the normals for given vertices.
+    /// </summary>
+    /// <returns>An 2D array with the normals.</returns>
+    private Vector3[][] ComputeNormals()
     {
       Vector3[][] normals = new Vector3[grid.Length][];
 
-      for (int y = 0; y < grid.Length; ++y)
+      for (int y = 0; y < grid.Length; y++)
       {
         normals[y] = new Vector3[grid.Length];
-        for (int x = 0; x < grid.Length; ++x)
+        for (int x = 0; x < grid.Length; x++)
         {
-          float sx = h(x<grid.Length-1 ? x+1 : x, y) - h(x>0 ? x-1 : x, y);
+          float sx = ReturnHeightMapValue(x < grid.Length-1 ? x+1 : x, y) - ReturnHeightMapValue(x > 0 ? x-1 : x, y);
           if (x == 0 || x == grid.Length - 1)
+          {
             sx *= 2;
+          }
 
-          float sy = h(x, y<grid.Length-1 ? y+1 : y) - h(x, y>0 ?  y-1 : y);
+          float sy = ReturnHeightMapValue(x, y < grid.Length-1 ? y+1 : y) - ReturnHeightMapValue(x, y > 0 ?  y-1 : y);
           if (y == 0 || y == grid.Length - 1)
+          {
             sy *= 2;
+          }
 
-          normals[y][x] = new Vector3(-sx, 2, sy);
-          normals[y][x] = Normalize(normals[y][x]);
+          normals[y][x] = new Vector3(-sx, 2.0f, sy);
+          normals[y][x] = NormalizeVector(normals[y][x]);
         }
       }
       return normals;
+    }
+
+    /// <summary>
+    /// This method generates a new grid of vertices with some random height values (those should be changed later in the code).
+    /// </summary>
+    /// <param name="size">Size of the grid (one side)</param>
+    /// <param name="minValue">Minimal x/y-value</param>
+    /// <param name="maxValue">Maximal x/y-value</param>
+    private void GenerateNewGrid (int size, double minValue, double maxValue)
+    {
+      double xVal, zVal;
+      grid = new CustomVector[size][];
+      for (int i = 1; i <= size; i++)
+      {
+        grid[i - 1] = new CustomVector[size];
+        xVal = minValue + (maxValue - minValue) * (i - 1) / (size - 1);
+
+        for (int j = 1; j <= size; j++)
+        {
+          zVal = minValue + (maxValue - minValue) * (j - 1) / (size - 1);
+          grid[i - 1][j - 1] = new CustomVector();
+          grid[i - 1][j - 1].vect = new Vector3((float)xVal, (float)rnd.NextDouble() / 4, (float)zVal);
+        }
+      }
     }
 
     /// <summary>
@@ -339,36 +342,20 @@ namespace _039terrain
 
       scene.Reset();
 
-      //iterations = 3;
-
-      //int size = ((iterations + 1) * (iterations + 1)) + 1;
       int size = (int)Math.Pow(2, iterations) + 1;
-      //Debug.WriteLine(size);
 
       double minValue = -0.5;
       double maxValue = 0.5;
 
-      double xVal = 0;
-      double zVal = 0;
+      int skip = -1; //how many vertices will be skipped
 
-      currentMinHeight = 0;
-      currentMaxHeight = 0;
-
-      /* TODOS!!!
-       * - add textures
-       * - clean code
-       * */
-      int skip = -1;
-
-      if(!forceRegenerate && grid != null && grid.Length > size) //zhrubne teren
+      #region gridLogic
+      if (!forceRegenerate && grid != null && grid.Length > size) //less vertices are shown
       {
         int formerSize = (int)Math.Log(heightMap.Length - 1, 2);
-        Debug.WriteLine("A: " + formerSize + ", realsize: " + size + ", size: " + (int)Math.Log(size - 1, 2));
-        skip = (int)Math.Pow(2, formerSize - (int)Math.Log(size - 1, 2));
 
-        Debug.WriteLine("SKIP:" + skip);
-        Debug.WriteLine("gs:" + grid.Length);
-
+        skip = (int)Math.Pow(2, formerSize - (int)Math.Log(size - 1, 2)); 
+        //every skip-th element will be skipped
         for (int i = 0; i < grid.Length; i++)
         {
           for(int j = 0; j < grid.Length; j++)
@@ -384,80 +371,50 @@ namespace _039terrain
           }
         }
       }
-      else if (grid != null && grid.Length < size) //zjemnit
+      else if ((grid != null && grid.Length < size) || (grid == null || forceRegenerate)) //more vertices should be shown or there is need to regenerate the grid
       {
-        grid = new CustomVector[size][];
-        for (int i = 1; i <= size; i++)
-        {
-          grid[i - 1] = new CustomVector[size];
-          xVal = minValue + (maxValue - minValue) * (i - 1) / (size - 1);
-
-          for (int j = 1; j <= size; j++)
-          {
-            zVal = minValue + (maxValue - minValue) * (j - 1) / (size - 1);
-            grid[i - 1][j - 1] = new CustomVector();
-            grid[i - 1][j - 1].vect = new Vector3((float)xVal, (float)rnd.NextDouble() / 4, (float)zVal);
-          }
-        }
+        GenerateNewGrid(size, minValue, maxValue);
       }
-      else if (grid == null || forceRegenerate) //vygeneruj novy uplne
+      #endregion
+
+      #region customHeightMap
+      /*
+       * To enable the custom heightmap, type the name of the file to the params text field.
+       * Then hit the "regenerate" button. 
+       * When increasing the heightmap iterations, the program cannot guess the roughness parameter.
+       * The edges thus might be a little fuzzy (I tried to reduce it as much as possible, but it is not perfect).
+       * 
+       * The heightmap has to be of a size 2^n + 1 !
+       * The heightmap should be grayscale (the heights are computed by the red shade) !
+       * When loading the heightmap, the iterations number has to be lower than the bitmap resolution!
+       * In other cases, the program ignores the custom heightmap parameter.
+       */
+      if (param.Length > 0 && paramsLast != param)
       {
-        grid = new CustomVector[size][];
-        for (int i = 1; i <= size; i++)
-        {
-          grid[i - 1] = new CustomVector[size];
-          xVal = minValue + (maxValue - minValue) * (i - 1) / (size - 1);
-
-          for (int j = 1; j <= size; j++)
-          {
-            zVal = minValue + (maxValue - minValue) * (j - 1) / (size - 1);
-            grid[i - 1][j - 1] = new CustomVector();
-            grid[i - 1][j - 1].vect = new Vector3((float)xVal, (float)rnd.NextDouble() / 4, (float)zVal);
-          }
-        }
-      }
-
-
-      if(param.Length > 0 && paramsLast != param)
-      {
-        //custom heightmap
         try
         {
           Bitmap bmp = new Bitmap(param);
-          //check bmp size 2^n+1
-          //it is better to reject if the iterations number is higher than the bmp size (ideally the user should enter their size)
+          //check bmp size 2^n+1, otherwise reject
+          //it is also better to reject if the iterations number is higher than the bmp size (ideally the user should enter the corresponding size)
           if(Math.Log(bmp.Width - 1, 2) != Math.Floor(Math.Log(bmp.Width - 1, 2)) || Math.Log(bmp.Width - 1, 2) < iterations)
           {
             throw new Exception("Invalid heightmap size");
           }
 
-          grid = new CustomVector[bmp.Width][];
-
           precomputed = true;
 
-          for (int i = 1; i <= bmp.Width; i++)
-          {
-            grid[i - 1] = new CustomVector[bmp.Width];
-            xVal = minValue + (maxValue - minValue) * (i - 1) / (bmp.Width - 1);
-
-            for (int j = 1; j <= bmp.Width; j++)
-            {
-              zVal = minValue + (maxValue - minValue) * (j - 1) / (bmp.Width - 1);
-              grid[i - 1][j - 1] = new CustomVector();
-              grid[i - 1][j - 1].vect = new Vector3((float)xVal, 0, (float)zVal);
-            }
-          }
+          GenerateNewGrid(bmp.Width, minValue, maxValue);
 
           double[][] newhm = new double[bmp.Width][];
 
+          //for each pixel get the color and set the corresponding height
           for (int i = 0; i < bmp.Width; i++)
           {
             newhm[i] = new double[bmp.Width];
             for(int j = 0; j < bmp.Width; j++)
             {
               Color c = bmp.GetPixel(i, j);
-              float color = 1 - (c.G / (float)255) - 0.5f;
-              Debug.WriteLine(color);
+              float color = 1 - (c.G / (float)255) - 0.4f;
               newhm[i][j] = color;
             }
           }
@@ -472,18 +429,17 @@ namespace _039terrain
         }
         finally
         {
-          normals = computeNormals();
+          normals = ComputeNormals();
         }
       }
+      #endregion
 
-      Debug.WriteLine(grid.Length * grid.Length);
-
-      if(!forceRegenerate && heightMap != null && heightMap.Length > size) //zhrubne teren - heightmap bez reakce
+      #region heightMapLogic
+      if (!forceRegenerate && heightMap != null && heightMap.Length > size) //we need to show less vertices
       {
-        // we do not need to do anything here
-        Console.WriteLine("asdasd");
+        // we do not need to do anything here right now
       }
-      else if (heightMap != null && heightMap.Length < size) //zjemni se teren, potrebujeme novou heightmapu
+      else if (heightMap != null && heightMap.Length < size) //we need to show more vertices - compute more heights
       {
         double[][] temp = heightMap;
         heightMap = new double[size][];
@@ -500,9 +456,9 @@ namespace _039terrain
           }
         }
         GenerateHeightMap(heightMap, roughness, size);
-        normals = computeNormals();
+        normals = ComputeNormals();
       }
-      else if (heightMap == null || forceRegenerate)
+      else if (heightMap == null || forceRegenerate) //else if regenerating for the first time / force regenerating
       {
         precomputed = false;
         heightMap = new double[size][];
@@ -511,53 +467,51 @@ namespace _039terrain
           heightMap[i] = new double[size];
         }
         GenerateHeightMap(heightMap, roughness, size);
-        normals = computeNormals();
+        normals = ComputeNormals();
       }
+      #endregion
 
+      #region verticesLogic
+      //create all of the vertices and the normals and color them
       for (int i = 0; i < grid.Length; i++)
       {
         for (int j = 0; j < grid.Length; j++)
         {
-          float y = grid[i][j].vect.Y;
-
-          //y *= (roughness / (float)5);
-          //y = ((y / currentMinHeight) * norm * -1); // posledni clen aby se to nejak chovalo priblizne podle ty roughness
-          //y = NormalizeNumber(float)hm[i][j], currentMinHeight, currentMaxHeight);
           grid[i][j].vect.Y = (float)heightMap[i][j] / 2.5f;
 
           grid[i][j].id = scene.AddVertex(grid[i][j].vect);
 
           scene.SetNormal(grid[i][j].id, normals[i][j]);
 
-          if((float)heightMap[i][j] <= -0.3)
+          if((float)heightMap[i][j] <= -0.3) //deep water
           {
             scene.SetColor(grid[i][j].id, new Vector3(0.0f, RandomInRange(0.03f, 0.04f), RandomInRange(0.35f, 0.45f)));
           }
-          else if ((float)heightMap[i][j] <= -0.1)
+          else if ((float)heightMap[i][j] <= -0.1) //normal water
           {
             //0.00, 0.0683, 0.820
             //0.00, 0.511, 0.930
             scene.SetColor(grid[i][j].id, new Vector3(0.0f, RandomInRange(0.1f, 0.4f), RandomInRange(0.8f, 0.9f)));
           }
-          else if ((float)heightMap[i][j] <= -0.05)
+          else if ((float)heightMap[i][j] <= -0.05) //sand
           {
             //0.890, 0.724, 0.125
             //0.960, 0.807, 0.125
             scene.SetColor(grid[i][j].id, new Vector3(RandomInRange(0.85f, 0.95f), RandomInRange(0.7f, 0.8f), 0.125f));
           }
-          else if ((float)heightMap[i][j] <= 0.25)
+          else if ((float)heightMap[i][j] <= 0.25) //grass
           {
             //0.0216, 0.540, 0.125
             //0.166, 0.790, 0.291
             scene.SetColor(grid[i][j].id, new Vector3(RandomInRange(0.05f, 0.15f), RandomInRange(0.55f, 0.75f), RandomInRange(0.15f, 0.25f)));
           }
-          else if ((float)heightMap[i][j] <= 0.7)
+          else if ((float)heightMap[i][j] <= 0.7) //mountain soil
           {
             //0.910, 0.806, 0.0182
             //0.370, 0.329, 0.0148
             scene.SetColor(grid[i][j].id, new Vector3(RandomInRange(0.6f, 0.8f), RandomInRange(0.4f, 0.6f), RandomInRange(0.01f, 0.02f)));
           }
-          else
+          else //snow
           {
             //0.970, 0.970, 0.970
             //0.890, 0.890, 0.890
@@ -565,13 +519,15 @@ namespace _039terrain
           }
         }
       }
+      #endregion
 
-      //ted pro kazdej bod udelat trojuhelniky
+      #region triangleLogic
+      //create all the triangles
       for (int i = 0; i < grid.Length; i++)
       {
         for(int j = 0; j < grid.Length; j++)
         {
-          //Debug.WriteLine("X: " + grid[i][j].vect.X + ", Y: " + grid[i][j].vect.Y + ", Z: " + grid[i][j].vect.Z + ", id: " + grid[i][j].id + ", currMin: " + currentMinHeight + ", currMax: " + currentMaxHeight);
+          //Debug.WriteLine("X: " + grid[i][j].vect.X + ", Y: " + grid[i][j].vect.Y + ", Z: " + grid[i][j].vect.Z + ", id: " + grid[i][j].id);
 
           if (skip != -1)
           {
@@ -579,14 +535,10 @@ namespace _039terrain
             {
               if ((j < grid.Length - skip) && (i < grid.Length - skip))
               {
-                //udelat trojuhelnik z bodu doprava a dolu
-                //SetTriangleTextures(i, j + skip, i + skip, j, i, j, false);
                 scene.AddTriangle(grid[i][j + skip].id, grid[i + skip][j].id, grid[i][j].id);
               }
               if (j >= skip && i >= skip)
               {
-                //z bodu doleva a nahoru
-                //SetTriangleTextures(i,j,i - skip,j,i,j - skip, true);
                 scene.AddTriangle(grid[i][j].id, grid[i - skip][j].id, grid[i][j - skip].id);
               }
             }
@@ -595,57 +547,26 @@ namespace _039terrain
           {
             if ((j < grid.Length - 1) && (i < grid.Length - 1))
             {
-              //udelat trojuhelnik z bodu doprava a dolu
-              //SetTriangleTextures(i, j + 1, i + 1, j, i, j, false);
               scene.AddTriangle(grid[i][j + 1].id, grid[i + 1][j].id, grid[i][j].id);
             }
             if (j > 0 && i > 0)
             {
-              //z bodu doleva a nahoru
-              //SetTriangleTextures(i, j, i - 1, j, i, j - 1, true);
               scene.AddTriangle(grid[i][j].id, grid[i - 1][j].id, grid[i][j - 1].id);
             }
           }
         }
+        #endregion
 
         iterationsLast = iterations;
         roughLast = roughness;
         paramsLast = param;
       }
 
-      /*
-
-      // dummy rectangle, facing to the camera
-      // notice that your terrain is supposed to be placed
-      // in the XZ plane (elevation increases along the positive Y axis)
-
-      float txtExtreme = 1.0f + iterations;
-      scene.SetTxtCoord(0, new Vector2(0.0f, 0.0f));
-      scene.SetTxtCoord(1, new Vector2(0.0f, txtExtreme));
-      scene.SetTxtCoord(2, new Vector2(txtExtreme, 0.0f));
-      scene.SetTxtCoord(3, new Vector2(txtExtreme, txtExtreme));
-      */
-
       // this function uploads the data to the graphics card
-      float txtExtreme = 1.0f + iterations;
-
       PrepareData();
-
-      // load a texture
-      if (textureId > 0)
-      {
-        GL.DeleteTexture(textureId);
-        textureId = 0;
-      }
-
-      //textureId = TexUtil.CreateTextureFromFile("cgg256.png", "../../cgg256.png");
-      //textureId = TexUtil.CreateTextureFromFile("txt.png", "../../txt.png");
-      textureId = TexUtil.CreateTextureFromFile("txt.png", "../../txt.png");
 
       // simulation / hovercraft [re]initialization?
       InitSimulation(false);
-
-      // !!!}}
     }
 
     /// <summary>
