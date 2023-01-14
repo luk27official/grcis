@@ -383,10 +383,14 @@ namespace _039terrain
        * Then hit the "regenerate" button. 
        * When increasing the heightmap iterations, the program cannot guess the roughness parameter.
        * The edges thus might be a little fuzzy (I tried to reduce it as much as possible, but it is not perfect).
+       * If the user wants a "perfect" representation of the heightmap, they should scale the bitmap image
+       * to the preferred size (like scaling 33x33 to 129x129).
        * 
+       * WARNINGS!
        * The heightmap has to be of a size 2^n + 1 !
        * The heightmap should be grayscale (the heights are computed by the red shade) !
        * When loading the heightmap, the iterations number has to be lower than the bitmap resolution!
+       * 
        * In other cases, the program ignores the custom heightmap parameter.
        */
       if (param.Length > 0 && paramsLast != param)
@@ -414,6 +418,7 @@ namespace _039terrain
             for(int j = 0; j < bmp.Width; j++)
             {
               Color c = bmp.GetPixel(i, j);
+              //0.4f here is an "optimal" constant, the user may remove it but then more water/hilly surface will appear
               float color = 1 - (c.G / (float)255) - 0.4f;
               newhm[i][j] = color;
             }
